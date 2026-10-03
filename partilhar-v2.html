@@ -113,7 +113,8 @@
           if (Array.isArray(lista) && lista.length > 0) {
             return lista.map(function (produto, index) {
               return {
-                titulo: String(produto.titulo || "Produto " + (index + 1)),
+                titulo: String(produto.titulo || "Produto " + (index + 1))
+                  .replace(/^Produto\s+\d+\s*:\s*/i, ""),
                 imagem: String(produto.imagem || ""),
                 texto: String(produto.texto || ""),
               };
