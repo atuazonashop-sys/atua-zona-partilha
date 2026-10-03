@@ -16,9 +16,13 @@
 
     * { box-sizing: border-box; }
 
+    html {
+      scroll-padding-bottom: calc(110px + env(safe-area-inset-bottom));
+    }
+
     body {
       margin: 0;
-      padding: 12px 10px 28px;
+      padding: 12px 10px calc(120px + env(safe-area-inset-bottom));
     }
 
     main {
@@ -46,6 +50,11 @@
       line-height: 1.25;
     }
 
+    .bloco {
+      scroll-margin-top: 14px;
+      scroll-margin-bottom: calc(120px + env(safe-area-inset-bottom));
+    }
+
     .bloco + .bloco {
       margin-top: 18px;
       padding-top: 18px;
@@ -55,7 +64,7 @@
     img {
       display: block;
       width: 100%;
-      max-height: 300px;
+      max-height: 260px;
       object-fit: contain;
       border-radius: 12px;
       background: #fafafa;
@@ -90,6 +99,10 @@
       border: 0;
       background: #111;
       color: #fff;
+      position: sticky;
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      z-index: 20;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
     }
 
     .botao-enviado {
@@ -354,7 +367,7 @@
       setTimeout(function () {
         elemento.scrollIntoView({
           behavior: "smooth",
-          block: "start",
+          block: "center",
         });
       }, 250);
     }
