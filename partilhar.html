@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Partilhar camisola + dados</title>
+  <title>Partilhar produtos</title>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -34,11 +34,23 @@
     }
 
     h1 {
-      margin: 0 0 16px;
+      margin: 0 0 18px;
       font-size: 24px;
     }
 
-    img {
+    .produto + .produto {
+      margin-top: 28px;
+      padding-top: 28px;
+      border-top: 1px solid #e5e5e5;
+    }
+
+    .produto h2 {
+      margin: 0 0 14px;
+      font-size: 20px;
+      line-height: 1.3;
+    }
+
+    .produto img {
       display: block;
       width: 100%;
       max-height: 420px;
@@ -47,8 +59,8 @@
       background: #fff;
     }
 
-    pre {
-      margin: 18px 0;
+    .produto pre {
+      margin: 18px 0 0;
       padding: 16px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -58,29 +70,22 @@
       border-radius: 12px;
     }
 
-    button,
-    a.botao {
+    button {
       display: block;
       width: 100%;
-      border: 0;
       border-radius: 999px;
       padding: 15px 18px;
       font: inherit;
       font-weight: 700;
       text-align: center;
-      text-decoration: none;
       cursor: pointer;
     }
 
     #partilhar {
+      margin-top: 22px;
+      border: 0;
       background: #111;
       color: #fff;
-    }
-
-    #whatsapp {
-      margin-top: 12px;
-      background: #ececec;
-      color: #111;
     }
 
     #fechar {
@@ -103,19 +108,13 @@
 <body>
   <main>
     <div class="card">
-      <h1 id="titulo">Partilhar camisola + dados</h1>
+      <h1 id="tituloPagina">Partilhar camisola + dados</h1>
 
-      <img id="imagem" alt="Imagem do produto" />
-
-      <pre id="texto"></pre>
+      <div id="produtos"></div>
 
       <button id="partilhar" type="button">
-        Partilhar imagem + dados
+        Enviar camisola + dados
       </button>
-
-      <a id="whatsapp" class="botao" target="_blank" rel="noopener">
-        Enviar só os dados por WhatsApp
-      </a>
 
       <button id="fechar" type="button">
         Fechar
@@ -127,30 +126,77 @@
 
   <script>
     const params = new URLSearchParams(location.search);
-
-    const imagemUrl = params.get("imagem") || "";
-    const titulo = params.get("titulo") || "Produto";
-    const texto = params.get("texto") || "";
-
-    const imagemEl = document.getElementById("imagem");
-    const tituloEl = document.getElementById("titulo");
-    const textoEl = document.getElementById("texto");
+    const produtosEl = document.getElementById("produtos");
+    const tituloPaginaEl = document.getElementById("tituloPagina");
     const partilharEl = document.getElementById("partilhar");
-    const whatsappEl = document.getElementById("whatsapp");
     const fecharEl = document.getElementById("fechar");
     const estadoEl = document.getElementById("estado");
 
-    tituloEl.textContent = titulo;
-    textoEl.textContent = texto;
+    function obterProdutos() {
+      const produtosJson = params.get("produtos");
 
-    if (imagemUrl) {
-      imagemEl.src = imagemUrl;
-    } else {
-      imagemEl.classList.add("oculto");
+      if (produtosJson) {
+        try {
+          const lista = JSON.parse(produtosJson);
+
+          if (Array.isArray(lista) && lista.length > 0) {
+            return lista.map(function (produto, index) {
+              return {
+                titulo: String(
+                  produto.titulo ||
+                  "Produto " + (index + 1)
+                ),
+                imagem: String(produto.imagem || ""),
+                texto: String(produto.texto || ""),
+              };
+            });
+          }
+        } catch (erro) {
+          console.error("Não foi possível ler os produtos:", erro);
+        }
+      }
+
+      return [{
+        titulo: params.get("titulo") || "Produto",
+        imagem: params.get("imagem") || "",
+        texto: params.get("texto") || "",
+      }];
     }
 
-    whatsappEl.href =
-      "https://wa.me/?text=" + encodeURIComponent(texto);
+    const produtos = obterProdutos();
+    const variosProdutos = produtos.length > 1;
+
+    tituloPaginaEl.textContent = variosProdutos
+      ? "Enviar todos os produtos"
+      : produtos[0].titulo;
+
+    partilharEl.textContent = variosProdutos
+      ? "Enviar todos os produtos"
+      : "Enviar camisola + dados";
+
+    produtos.forEach(function (produto) {
+      const bloco = document.createElement("section");
+      bloco.className = "produto";
+
+      if (variosProdutos) {
+        const titulo = document.createElement("h2");
+        titulo.textContent = produto.titulo;
+        bloco.appendChild(titulo);
+      }
+
+      if (produto.imagem) {
+        const imagem = document.createElement("img");
+        imagem.src = produto.imagem;
+        imagem.alt = produto.titulo;
+        bloco.appendChild(imagem);
+      }
+
+      const texto = document.createElement("pre");
+      texto.textContent = produto.texto;
+      bloco.appendChild(texto);
+
+      produtosEl.appendChild(bloco);
+    });
 
     function extensaoPorTipo(tipo) {
       if (tipo.includes("png")) return "png";
@@ -159,12 +205,21 @@
       return "jpg";
     }
 
-    async function carregarFicheiroImagem() {
-      if (!imagemUrl) {
-        throw new Error("Não foi recebida nenhuma imagem.");
+    function nomeSeguro(valor) {
+      return String(valor || "produto")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "produto";
+    }
+
+    async function carregarBlobImagem(url) {
+      if (!url) {
+        throw new Error("Produto sem imagem.");
       }
 
-      const response = await fetch(imagemUrl, {
+      const response = await fetch(url, {
         mode: "cors",
         credentials: "omit",
       });
@@ -173,29 +228,207 @@
         throw new Error("Não foi possível carregar a imagem.");
       }
 
-      const blob = await response.blob();
+      return await response.blob();
+    }
+
+    async function carregarImagemParaCanvas(url) {
+      const blob = await carregarBlobImagem(url);
+      const objectUrl = URL.createObjectURL(blob);
+
+      try {
+        const imagem = await new Promise(function (resolve, reject) {
+          const img = new Image();
+          img.onload = function () { resolve(img); };
+          img.onerror = reject;
+          img.src = objectUrl;
+        });
+
+        return imagem;
+      } finally {
+        setTimeout(function () {
+          URL.revokeObjectURL(objectUrl);
+        }, 1000);
+      }
+    }
+
+    async function ficheiroImagemOriginal(produto, index) {
+      const blob = await carregarBlobImagem(produto.imagem);
       const tipo = blob.type || "image/jpeg";
       const extensao = extensaoPorTipo(tipo);
 
       return new File(
         [blob],
-        "camisola." + extensao,
+        nomeSeguro(produto.titulo || "produto-" + (index + 1)) + "." + extensao,
         {type: tipo},
       );
     }
 
-    fecharEl.addEventListener("click", () => {
+    function quebrarLinha(ctx, texto, larguraMaxima) {
+      const palavras = String(texto || "").split(/\s+/);
+      const linhas = [];
+      let linha = "";
+
+      palavras.forEach(function (palavra) {
+        const teste = linha ? linha + " " + palavra : palavra;
+
+        if (
+          ctx.measureText(teste).width > larguraMaxima &&
+          linha
+        ) {
+          linhas.push(linha);
+          linha = palavra;
+        } else {
+          linha = teste;
+        }
+      });
+
+      if (linha) {
+        linhas.push(linha);
+      }
+
+      return linhas.length ? linhas : [""];
+    }
+
+    async function criarCartaoProduto(produto, index) {
+      const largura = 1080;
+      const margem = 70;
+      const imagemTopo = 150;
+      const imagemAltura = 700;
+      const caixaTextoTopo = 900;
+      const linhaAltura = 58;
+
+      const canvasMedida = document.createElement("canvas");
+      canvasMedida.width = largura;
+      const ctxMedida = canvasMedida.getContext("2d");
+
+      ctxMedida.font = "700 46px system-ui, sans-serif";
+      const tituloLinhas = quebrarLinha(
+        ctxMedida,
+        produto.titulo,
+        largura - margem * 2,
+      );
+
+      ctxMedida.font = "40px system-ui, sans-serif";
+      const textoOriginal = String(produto.texto || "").split("\n");
+      const textoLinhas = [];
+
+      textoOriginal.forEach(function (linha) {
+        if (!linha.trim()) {
+          textoLinhas.push("");
+          return;
+        }
+
+        quebrarLinha(
+          ctxMedida,
+          linha,
+          largura - margem * 2 - 40,
+        ).forEach(function (parte) {
+          textoLinhas.push(parte);
+        });
+      });
+
+      const alturaTexto =
+        tituloLinhas.length * 56 +
+        40 +
+        Math.max(1, textoLinhas.length) * linhaAltura +
+        100;
+
+      const altura = Math.max(1350, caixaTextoTopo + alturaTexto);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = largura;
+      canvas.height = altura;
+
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, largura, altura);
+
+      ctx.fillStyle = "#111111";
+      ctx.font = "700 46px system-ui, sans-serif";
+
+      let tituloY = 70;
+      tituloLinhas.forEach(function (linha) {
+        ctx.fillText(linha, margem, tituloY);
+        tituloY += 56;
+      });
+
+      if (produto.imagem) {
+        const imagem = await carregarImagemParaCanvas(produto.imagem);
+        const areaLargura = largura - margem * 2;
+        const proporcao = Math.min(
+          areaLargura / imagem.naturalWidth,
+          imagemAltura / imagem.naturalHeight,
+        );
+
+        const desenharLargura = imagem.naturalWidth * proporcao;
+        const desenharAltura = imagem.naturalHeight * proporcao;
+        const x = (largura - desenharLargura) / 2;
+        const y = imagemTopo + (imagemAltura - desenharAltura) / 2;
+
+        ctx.drawImage(
+          imagem,
+          x,
+          y,
+          desenharLargura,
+          desenharAltura,
+        );
+      }
+
+      ctx.fillStyle = "#f5f5f5";
+      ctx.beginPath();
+      ctx.roundRect(
+        margem,
+        caixaTextoTopo,
+        largura - margem * 2,
+        altura - caixaTextoTopo - margem,
+        28,
+      );
+      ctx.fill();
+
+      ctx.fillStyle = "#111111";
+      ctx.font = "40px system-ui, sans-serif";
+
+      let yTexto = caixaTextoTopo + 70;
+
+      textoLinhas.forEach(function (linha) {
+        if (linha) {
+          ctx.fillText(linha, margem + 30, yTexto);
+        }
+        yTexto += linhaAltura;
+      });
+
+      const blob = await new Promise(function (resolve, reject) {
+        canvas.toBlob(function (resultado) {
+          if (resultado) {
+            resolve(resultado);
+          } else {
+            reject(new Error("Não foi possível criar o cartão."));
+          }
+        }, "image/png", 0.95);
+      });
+
+      return new File(
+        [blob],
+        nomeSeguro(produto.titulo || "produto-" + (index + 1)) + ".png",
+        {type: "image/png"},
+      );
+    }
+
+    fecharEl.addEventListener("click", function () {
       window.close();
 
-      setTimeout(() => {
+      setTimeout(function () {
         if (!window.closed && history.length > 1) {
           history.back();
         }
       }, 150);
     });
 
-    partilharEl.addEventListener("click", async () => {
-      estadoEl.textContent = "A preparar a imagem...";
+    partilharEl.addEventListener("click", async function () {
+      estadoEl.textContent = variosProdutos
+        ? "A preparar os produtos..."
+        : "A preparar a imagem...";
 
       try {
         if (!navigator.share || !navigator.canShare) {
@@ -204,21 +437,40 @@
           );
         }
 
-        const ficheiro = await carregarFicheiroImagem();
+        let ficheiros;
+        let dadosPartilha;
 
-        if (!navigator.canShare({files: [ficheiro]})) {
+        if (variosProdutos) {
+          ficheiros = await Promise.all(
+            produtos.map(function (produto, index) {
+              return criarCartaoProduto(produto, index);
+            }),
+          );
+
+          dadosPartilha = {
+            title: "Produtos do pedido",
+            files: ficheiros,
+          };
+        } else {
+          const ficheiro = await ficheiroImagemOriginal(produtos[0], 0);
+
+          ficheiros = [ficheiro];
+
+          dadosPartilha = {
+            title: produtos[0].titulo,
+            text: produtos[0].texto,
+            files: ficheiros,
+          };
+        }
+
+        if (!navigator.canShare({files: ficheiros})) {
           throw new Error(
-            "Este dispositivo não permite partilhar esta imagem como ficheiro."
+            "Este dispositivo não permite partilhar estes ficheiros."
           );
         }
 
         estadoEl.textContent = "";
-
-        await navigator.share({
-          title: titulo,
-          text: texto,
-          files: [ficheiro],
-        });
+        await navigator.share(dadosPartilha);
       } catch (erro) {
         if (erro && erro.name === "AbortError") {
           estadoEl.textContent = "";
@@ -227,9 +479,9 @@
 
         console.error(erro);
 
-        estadoEl.textContent =
-          "Não foi possível enviar a imagem e o texto juntos. " +
-          "Podes usar o botão abaixo para enviar os dados por WhatsApp.";
+        estadoEl.textContent = variosProdutos
+          ? "Não foi possível partilhar todos os produtos de uma vez neste dispositivo."
+          : "Não foi possível enviar a camisola e os dados juntos neste dispositivo.";
       }
     });
   </script>
