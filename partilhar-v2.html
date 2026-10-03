@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Enviar pedido ao fornecedor</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1f1f1f;
+      background: #f6f6f6;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px 40px; }
+    main { width: min(100%, 560px); margin: 0 auto; }
+    .card {
+      background: #fff;
+      border: 1px solid #dedede;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.08);
+    }
+    h1 { margin: 0 0 18px; font-size: 24px; }
+    h2 { margin: 0 0 14px; font-size: 20px; line-height: 1.3; }
+    .bloco + .bloco {
+      margin-top: 28px;
+      padding-top: 28px;
+      border-top: 1px solid #e5e5e5;
+    }
+    img {
+      display: block;
+      width: 100%;
+      max-height: 420px;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #fff;
+    }
+    pre {
+      margin: 18px 0 0;
+      padding: 16px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: inherit;
+      line-height: 1.55;
+      background: #f7f7f7;
+      border-radius: 12px;
+    }
+    button {
+      display: block;
+      width: 100%;
+      border-radius: 999px;
+      padding: 15px 18px;
+      font: inherit;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+    }
+    #partilhar {
+      margin-top: 22px;
+      border: 0;
+      background: #111;
+      color: #fff;
+    }
+    #fechar {
+      margin-top: 12px;
+      background: #fff;
+      color: #111;
+      border: 1px solid #d8d8d8;
+    }
+    #estado { margin: 14px 0 0; line-height: 1.45; }
+    .oculto { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="card">
+      <h1 id="tituloPagina">Enviar pedido</h1>
+
+      <section id="clienteBloco" class="bloco oculto">
+        <h2>Dados do cliente</h2>
+        <pre id="clienteTexto"></pre>
+      </section>
+
+      <div id="produtos"></div>
+
+      <button id="partilhar" type="button">Enviar camisola + dados</button>
+      <button id="fechar" type="button">Fechar</button>
+      <p id="estado"></p>
+    </div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+
+    const produtosEl = document.getElementById("produtos");
+    const tituloPaginaEl = document.getElementById("tituloPagina");
+    const partilharEl = document.getElementById("partilhar");
+    const fecharEl = document.getElementById("fechar");
+    const estadoEl = document.getElementById("estado");
+    const clienteBlocoEl = document.getElementById("clienteBloco");
+    const clienteTextoEl = document.getElementById("clienteTexto");
+
+    function obterProdutos() {
+      const produtosJson = params.get("produtos");
+
+      if (produtosJson) {
+        try {
+          const lista = JSON.parse(produtosJson);
+
+          if (Array.isArray(lista) && lista.length > 0) {
+            return lista.map(function (produto, index) {
+              return {
+                titulo: String(produto.titulo || "Produto " + (index + 1)),
+                imagem: String(produto.imagem || ""),
+                texto: String(produto.texto || ""),
+              };
+            });
+          }
+        } catch (erro) {
+          console.error("Não foi possível ler os produtos:", erro);
+        }
+      }
+
+      return [{
+        titulo: params.get("titulo") || "Produto",
+        imagem: params.get("imagem") || "",
+        texto: params.get("texto") || "",
+      }];
+    }
+
+    const produtos = obterProdutos();
+    const dadosCliente = params.get("cliente") || "";
+    const variosProdutos = produtos.length > 1;
+
+    tituloPaginaEl.textContent = variosProdutos
+      ? "Enviar todos os produtos"
+      : produtos[0].titulo;
+
+    partilharEl.textContent = variosProdutos
+      ? "Enviar todos os produtos + cliente"
+      : "Enviar camisola + dados";
+
+    if (dadosCliente && variosProdutos) {
+      clienteTextoEl.textContent = dadosCliente;
+      clienteBlocoEl.classList.remove("oculto");
+    }
+
+    produtos.forEach(function (produto, index) {
+      const bloco = document.createElement("section");
+      bloco.className = "bloco";
+
+      const titulo = document.createElement("h2");
+      titulo.textContent = variosProdutos
+        ? "Produto " + (index + 1) + ": " + produto.titulo
+        : produto.titulo;
+      bloco.appendChild(titulo);
+
+      if (produto.imagem) {
+        const imagem = document.createElement("img");
+        imagem.src = produto.imagem;
+        imagem.alt = produto.titulo;
+        bloco.appendChild(imagem);
+      }
+
+      const texto = document.createElement("pre");
+      texto.textContent = produto.texto;
+      bloco.appendChild(texto);
+
+      produtosEl.appendChild(bloco);
+    });
+
+    function extensaoPorTipo(tipo) {
+      if (tipo.includes("png")) return "png";
+      if (tipo.includes("webp")) return "webp";
+      if (tipo.includes("gif")) return "gif";
+      return "jpg";
+    }
+
+    function nomeSeguro(valor) {
+      return String(valor || "produto")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "produto";
+    }
+
+    async function carregarBlobImagem(url) {
+      if (!url) throw new Error("Produto sem imagem.");
+
+      const response = await fetch(url, {
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Não foi possível carregar a imagem.");
+      }
+
+      return await response.blob();
+    }
+
+    async function ficheiroImagemOriginal(produto, index) {
+      const blob = await carregarBlobImagem(produto.imagem);
+      const tipo = blob.type || "image/jpeg";
+      const extensao = extensaoPorTipo(tipo);
+
+      return new File(
+        [blob],
+        nomeSeguro(produto.titulo || "produto-" + (index + 1)) + "." + extensao,
+        {type: tipo},
+      );
+    }
+
+    function criarTextoTodos() {
+      const partes = [];
+
+      if (dadosCliente) {
+        partes.push("DADOS DO CLIENTE\n\n" + dadosCliente);
+      }
+
+      produtos.forEach(function (produto, index) {
+        partes.push(
+          [
+            "PRODUTO " + (index + 1) + ": " + produto.titulo,
+            produto.texto,
+          ]
+            .filter(Boolean)
+            .join("\n\n")
+        );
+      });
+
+      return partes.join("\n\n────────────\n\n");
+    }
+
+    fecharEl.addEventListener("click", function () {
+      window.close();
+
+      setTimeout(function () {
+        if (!window.closed && history.length > 1) {
+          history.back();
+        }
+      }, 150);
+    });
+
+    partilharEl.addEventListener("click", async function () {
+      estadoEl.textContent = variosProdutos
+        ? "A preparar os produtos..."
+        : "A preparar a imagem...";
+
+      try {
+        if (!navigator.share || !navigator.canShare) {
+          throw new Error("Este browser não suporta partilha de ficheiros.");
+        }
+
+        let ficheiros;
+        let dadosPartilha;
+
+        if (variosProdutos) {
+          ficheiros = await Promise.all(
+            produtos.map(function (produto, index) {
+              return ficheiroImagemOriginal(produto, index);
+            }),
+          );
+
+          dadosPartilha = {
+            title: "Produtos do pedido",
+            text: criarTextoTodos(),
+            files: ficheiros,
+          };
+        } else {
+          const ficheiro = await ficheiroImagemOriginal(produtos[0], 0);
+          ficheiros = [ficheiro];
+
+          dadosPartilha = {
+            title: produtos[0].titulo,
+            text: produtos[0].texto,
+            files: ficheiros,
+          };
+        }
+
+        if (!navigator.canShare({files: ficheiros})) {
+          throw new Error("Este dispositivo não permite partilhar estes ficheiros.");
+        }
+
+        estadoEl.textContent = "";
+        await navigator.share(dadosPartilha);
+      } catch (erro) {
+        if (erro && erro.name === "AbortError") {
+          estadoEl.textContent = "";
+          return;
+        }
+
+        console.error(erro);
+        estadoEl.textContent = variosProdutos
+          ? "Não foi possível partilhar todos os produtos de uma vez neste dispositivo."
+          : "Não foi possível enviar a camisola e os dados juntos neste dispositivo.";
+      }
+    });
+  </script>
+</body>
+</html>
