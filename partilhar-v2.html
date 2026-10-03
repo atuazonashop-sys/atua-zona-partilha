@@ -99,10 +99,6 @@
       border: 0;
       background: #111;
       color: #fff;
-      position: sticky;
-      bottom: calc(14px + env(safe-area-inset-bottom));
-      z-index: 20;
-      box-shadow: 0 8px 24px rgba(0,0,0,.18);
     }
 
     .botao-enviado {
@@ -414,7 +410,7 @@
             enviarClienteEl,
             "Dados do cliente enviados ✓",
           );
-          irParaElemento(blocosProdutos[0]);
+          irParaElemento(botoesProdutos[0]);
           return;
         }
 
@@ -459,12 +455,12 @@
           "Produto " + (index + 1) + " enviado ✓",
         );
 
-        const proximoBloco = blocosProdutos[index + 1];
+        const proximoBotao = botoesProdutos[index + 1];
 
-        if (proximoBloco) {
-          irParaElemento(proximoBloco);
+        if (proximoBotao) {
+          irParaElemento(proximoBotao);
         } else {
-          irParaElemento(fecharEl);
+          irParaElemento(marcarFornecedorEl);
         }
       } catch (erro) {
         if (erro && erro.name === "AbortError") {
