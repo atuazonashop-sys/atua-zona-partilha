@@ -192,6 +192,7 @@
 
     const produtos = obterProdutos();
     const dadosCliente = params.get("cliente") || "";
+    const orderId = params.get("order_id") || "";
     const variosProdutos = produtos.length > 1;
 
     tituloPaginaEl.textContent = variosProdutos
@@ -471,6 +472,22 @@
       }
 
       guardarEstado({concluido: true});
+
+      if (orderId) {
+        estadoEl.textContent = "A abrir a app Shopify...";
+        window.location.href =
+          "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+        setTimeout(function () {
+          if (document.visibilityState === "visible") {
+            estadoEl.textContent =
+              "Se a app Shopify não abrir, volta manualmente à app Shopify.";
+          }
+        }, 1200);
+
+        return;
+      }
+
       window.close();
 
       setTimeout(function () {
