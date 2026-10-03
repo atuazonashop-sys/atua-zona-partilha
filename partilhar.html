@@ -83,6 +83,13 @@
       color: #111;
     }
 
+    #fechar {
+      margin-top: 12px;
+      background: #fff;
+      color: #111;
+      border: 1px solid #d8d8d8;
+    }
+
     #estado {
       margin: 14px 0 0;
       line-height: 1.45;
@@ -110,6 +117,10 @@
         Enviar só os dados por WhatsApp
       </a>
 
+      <button id="fechar" type="button">
+        Fechar
+      </button>
+
       <p id="estado"></p>
     </div>
   </main>
@@ -126,6 +137,7 @@
     const textoEl = document.getElementById("texto");
     const partilharEl = document.getElementById("partilhar");
     const whatsappEl = document.getElementById("whatsapp");
+    const fecharEl = document.getElementById("fechar");
     const estadoEl = document.getElementById("estado");
 
     tituloEl.textContent = titulo;
@@ -171,6 +183,16 @@
         {type: tipo},
       );
     }
+
+    fecharEl.addEventListener("click", () => {
+      window.close();
+
+      setTimeout(() => {
+        if (!window.closed && history.length > 1) {
+          history.back();
+        }
+      }, 150);
+    });
 
     partilharEl.addEventListener("click", async () => {
       estadoEl.textContent = "A preparar a imagem...";
