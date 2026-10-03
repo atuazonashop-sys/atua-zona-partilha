@@ -112,6 +112,11 @@
 
       <div id="produtos"></div>
 
+      <section id="clienteBloco" class="produto oculto">
+        <h2>Dados do cliente</h2>
+        <pre id="clienteTexto"></pre>
+      </section>
+
       <button id="partilhar" type="button">
         Enviar camisola + dados
       </button>
@@ -131,6 +136,8 @@
     const partilharEl = document.getElementById("partilhar");
     const fecharEl = document.getElementById("fechar");
     const estadoEl = document.getElementById("estado");
+    const clienteBlocoEl = document.getElementById("clienteBloco");
+    const clienteTextoEl = document.getElementById("clienteTexto");
 
     function obterProdutos() {
       const produtosJson = params.get("produtos");
@@ -164,6 +171,7 @@
     }
 
     const produtos = obterProdutos();
+    const dadosCliente = params.get("cliente") || "";
     const variosProdutos = produtos.length > 1;
 
     tituloPaginaEl.textContent = variosProdutos
@@ -171,8 +179,13 @@
       : produtos[0].titulo;
 
     partilharEl.textContent = variosProdutos
-      ? "Enviar todos os produtos"
+      ? "Enviar todos os produtos + cliente"
       : "Enviar camisola + dados";
+
+    if (dadosCliente && variosProdutos) {
+      clienteTextoEl.textContent = dadosCliente;
+      clienteBlocoEl.classList.remove("oculto");
+    }
 
     produtos.forEach(function (produto) {
       const bloco = document.createElement("section");
@@ -287,6 +300,92 @@
       }
 
       return linhas.length ? linhas : [""];
+    }
+
+    async function criarCartaoCliente(textoCliente) {
+      const largura = 1080;
+      const margem = 70;
+      const linhaAltura = 58;
+
+      const canvasMedida = document.createElement("canvas");
+      canvasMedida.width = largura;
+      const ctxMedida = canvasMedida.getContext("2d");
+
+      ctxMedida.font = "40px system-ui, sans-serif";
+      const textoOriginal = String(textoCliente || "").split("\n");
+      const textoLinhas = [];
+
+      textoOriginal.forEach(function (linha) {
+        if (!linha.trim()) {
+          textoLinhas.push("");
+          return;
+        }
+
+        quebrarLinha(
+          ctxMedida,
+          linha,
+          largura - margem * 2 - 40,
+        ).forEach(function (parte) {
+          textoLinhas.push(parte);
+        });
+      });
+
+      const altura = Math.max(
+        900,
+        180 + Math.max(1, textoLinhas.length) * linhaAltura + 120,
+      );
+
+      const canvas = document.createElement("canvas");
+      canvas.width = largura;
+      canvas.height = altura;
+
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, largura, altura);
+
+      ctx.fillStyle = "#111111";
+      ctx.font = "700 48px system-ui, sans-serif";
+      ctx.fillText("Dados do cliente", margem, 90);
+
+      ctx.fillStyle = "#f5f5f5";
+      ctx.beginPath();
+      ctx.roundRect(
+        margem,
+        140,
+        largura - margem * 2,
+        altura - 210,
+        28,
+      );
+      ctx.fill();
+
+      ctx.fillStyle = "#111111";
+      ctx.font = "40px system-ui, sans-serif";
+
+      let yTexto = 220;
+
+      textoLinhas.forEach(function (linha) {
+        if (linha) {
+          ctx.fillText(linha, margem + 30, yTexto);
+        }
+        yTexto += linhaAltura;
+      });
+
+      const blob = await new Promise(function (resolve, reject) {
+        canvas.toBlob(function (resultado) {
+          if (resultado) {
+            resolve(resultado);
+          } else {
+            reject(new Error("Não foi possível criar os dados do cliente."));
+          }
+        }, "image/png", 0.95);
+      });
+
+      return new File(
+        [blob],
+        "dados-do-cliente.png",
+        {type: "image/png"},
+      );
     }
 
     async function criarCartaoProduto(produto, index) {
@@ -447,8 +546,14 @@
             }),
           );
 
+          if (dadosCliente) {
+            const ficheiroCliente = await criarCartaoCliente(dadosCliente);
+            ficheiros.push(ficheiroCliente);
+          }
+
           dadosPartilha = {
             title: "Produtos do pedido",
+            text: dadosCliente || undefined,
             files: ficheiros,
           };
         } else {
