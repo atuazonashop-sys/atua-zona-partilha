@@ -542,18 +542,33 @@
         if (variosProdutos) {
           ficheiros = await Promise.all(
             produtos.map(function (produto, index) {
-              return criarCartaoProduto(produto, index);
+              return ficheiroImagemOriginal(produto, index);
             }),
           );
 
-          if (dadosCliente) {
-            const ficheiroCliente = await criarCartaoCliente(dadosCliente);
-            ficheiros.push(ficheiroCliente);
-          }
+          const textoProdutos = produtos
+            .map(function (produto, index) {
+              return [
+                "Produto " + (index + 1) + ": " + produto.titulo,
+                produto.texto,
+              ]
+                .filter(Boolean)
+                .join("\n\n");
+            })
+            .join("\n\n────────────\n\n");
+
+          const textoCompleto = [
+            textoProdutos,
+            dadosCliente
+              ? "DADOS DO CLIENTE\n\n" + dadosCliente
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n════════════\n\n");
 
           dadosPartilha = {
             title: "Produtos do pedido",
-            text: dadosCliente || undefined,
+            text: textoCompleto,
             files: ficheiros,
           };
         } else {
