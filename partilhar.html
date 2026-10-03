@@ -110,12 +110,12 @@
     <div class="card">
       <h1 id="tituloPagina">Partilhar camisola + dados</h1>
 
-      <div id="produtos"></div>
-
       <section id="clienteBloco" class="produto oculto">
         <h2>Dados do cliente</h2>
         <pre id="clienteTexto"></pre>
       </section>
+
+      <div id="produtos"></div>
 
       <button id="partilhar" type="button">
         Enviar camisola + dados
@@ -472,10 +472,10 @@
             .join("\n\n────────────\n\n");
 
           const textoCompleto = [
-            textoProdutos,
             dadosCliente
               ? "DADOS DO CLIENTE\n\n" + dadosCliente
               : "",
+            textoProdutos,
           ]
             .filter(Boolean)
             .join("\n\n════════════\n\n");
