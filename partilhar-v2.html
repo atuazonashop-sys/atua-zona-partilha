@@ -95,8 +95,21 @@
       border: 1px solid #d8d8d8;
     }
 
-    #fechar {
+    #marcarFornecedor {
       margin-top: 28px;
+      border: 0;
+      background: #111;
+      color: #fff;
+    }
+
+    #marcarFornecedor:disabled {
+      background: #d8d8d8;
+      color: #777;
+      cursor: not-allowed;
+    }
+
+    #fechar {
+      margin-top: 12px;
       background: #fff;
       color: #111;
       border: 1px solid #d8d8d8;
@@ -127,6 +140,10 @@
 
       <div id="produtos"></div>
 
+      <button id="marcarFornecedor" type="button" disabled>
+        Envia primeiro os dados e todos os produtos
+      </button>
+
       <button id="fechar" type="button">Fechar</button>
       <p id="estado"></p>
     </div>
@@ -142,6 +159,7 @@
     const clienteBlocoEl = document.getElementById("clienteBloco");
     const clienteTextoEl = document.getElementById("clienteTexto");
     const enviarClienteEl = document.getElementById("enviarCliente");
+    const marcarFornecedorEl = document.getElementById("marcarFornecedor");
 
     function obterProdutos() {
       const produtosJson = params.get("produtos");
@@ -292,6 +310,29 @@
         chaveEstado(),
         JSON.stringify(Object.assign({}, atual, parcial)),
       );
+
+      atualizarBotaoFinal();
+    }
+
+    function tudoEnviado() {
+      const estado = lerEstado();
+
+      if (dadosCliente && !estado.cliente) {
+        return false;
+      }
+
+      return produtos.every(function (_produto, index) {
+        return Boolean(estado["produto" + index]);
+      });
+    }
+
+    function atualizarBotaoFinal() {
+      const concluido = tudoEnviado();
+
+      marcarFornecedorEl.disabled = !concluido;
+      marcarFornecedorEl.textContent = concluido
+        ? "Voltar ao Shopify e marcar como enviado"
+        : "Envia primeiro os dados e todos os produtos";
     }
 
     function marcarBotaoEnviado(botao, texto) {
@@ -328,6 +369,8 @@
           );
         }
       });
+
+      atualizarBotaoFinal();
     }
 
     async function partilharCliente() {
@@ -419,6 +462,20 @@
     enviarClienteEl.addEventListener("click", partilharCliente);
 
     restaurarEstado();
+
+    marcarFornecedorEl.addEventListener("click", function () {
+      if (!tudoEnviado()) {
+        return;
+      }
+
+      window.close();
+
+      setTimeout(function () {
+        if (!window.closed && history.length > 1) {
+          history.back();
+        }
+      }, 150);
+    });
 
     fecharEl.addEventListener("click", function () {
       window.close();
