@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Partilhar produto</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#f6f6f7;font-family:Arial,Helvetica,sans-serif;color:#202223}
+    .wrap{max-width:620px;margin:0 auto;padding:18px}
+    .card{background:#fff;border:1px solid #e1e3e5;border-radius:18px;padding:20px}
+    h1{font-size:26px;margin:0 0 18px}
+    img{display:block;width:100%;max-height:430px;object-fit:contain;background:#fafafa;border-radius:14px;margin:0 0 18px}
+    .dados{white-space:pre-wrap;background:#f6f6f7;border-radius:14px;padding:16px;font-size:18px;line-height:1.45;margin-bottom:18px}
+    button{width:100%;border:0;border-radius:999px;padding:16px 18px;font-size:18px;font-weight:700;cursor:pointer}
+    .primary{background:#111;color:#fff}
+    .secondary{background:#fff;color:#111;border:1px solid #c9cccf;margin-top:12px}
+    button:disabled{opacity:.55}
+    #estado{margin-top:16px;line-height:1.4;font-size:16px}
+    .erro{color:#b42318}
+    .ok{color:#18794e}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Enviar produto ao fornecedor</h1>
+      <img id="imagem" alt="Produto">
+      <div id="dados" class="dados"></div>
+      <button id="partilhar" class="primary">Partilhar imagem + dados</button>
+      <button id="voltar" class="secondary">Voltar à Shopify</button>
+      <div id="estado"></div>
+    </div>
+  </div>
+
+  <script>
+    const p = new URLSearchParams(location.search);
+    const imagemUrl = p.get("imagem") || "";
+    const texto = p.get("texto") || "";
+    const titulo = p.get("titulo") || "Produto";
+    const orderId = p.get("order_id") || "";
+
+    const imagemEl = document.getElementById("imagem");
+    const dadosEl = document.getElementById("dados");
+    const botao = document.getElementById("partilhar");
+    const voltar = document.getElementById("voltar");
+    const estado = document.getElementById("estado");
+
+    imagemEl.src = imagemUrl;
+    dadosEl.textContent = texto;
+
+    function extensao(tipo) {
+      tipo = String(tipo || "").toLowerCase();
+      if (tipo.includes("png")) return "png";
+      if (tipo.includes("webp")) return "webp";
+      if (tipo.includes("gif")) return "gif";
+      return "jpg";
+    }
+
+    async function ficheiroImagem() {
+      if (!imagemUrl) throw new Error("Produto sem imagem.");
+      const response = await fetch(imagemUrl, {
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("Não foi possível carregar a imagem.");
+      const blob = await response.blob();
+      const tipo = blob.type || "image/jpeg";
+      return new File([blob], "produto." + extensao(tipo), {type: tipo});
+    }
+
+    async function fallbackClipboardEWhatsApp() {
+      const file = await ficheiroImagem();
+
+      if (
+        navigator.clipboard &&
+        navigator.clipboard.write &&
+        typeof ClipboardItem !== "undefined"
+      ) {
+        let blob = file;
+        if (String(file.type).toLowerCase() !== "image/png") {
+          const bitmap = await createImageBitmap(file);
+          const canvas = document.createElement("canvas");
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          canvas.getContext("2d").drawImage(bitmap, 0, 0);
+          bitmap.close();
+          blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(x => x ? resolve(x) : reject(new Error("Falha ao preparar a imagem.")), "image/png");
+          });
+        }
+
+        await navigator.clipboard.write([
+          new ClipboardItem({"image/png": blob})
+        ]);
+        estado.className = "ok";
+        estado.textContent = "Imagem copiada. No WhatsApp, cola a imagem no chat.";
+      }
+
+      location.href = "https://wa.me/?text=" + encodeURIComponent(texto);
+    }
+
+    botao.addEventListener("click", async () => {
+      botao.disabled = true;
+      estado.className = "";
+      estado.textContent = "A preparar a imagem...";
+
+      try {
+        const file = await ficheiroImagem();
+
+        if (
+          navigator.share &&
+          (!navigator.canShare || navigator.canShare({files:[file]}))
+        ) {
+          await navigator.share({
+            title: titulo,
+            text: texto,
+            files: [file]
+          });
+
+          estado.className = "ok";
+          estado.textContent = "Partilha concluída. Podes voltar à Shopify.";
+          return;
+        }
+
+        await fallbackClipboardEWhatsApp();
+      } catch (erro) {
+        if (erro && erro.name === "AbortError") {
+          estado.textContent = "";
+          return;
+        }
+
+        console.error(erro);
+        estado.className = "erro";
+        estado.textContent =
+          "Não foi possível anexar automaticamente a imagem. Vou tentar o método alternativo.";
+
+        try {
+          await fallbackClipboardEWhatsApp();
+        } catch (erro2) {
+          console.error(erro2);
+          estado.className = "erro";
+          estado.textContent = "Não foi possível preparar a imagem neste dispositivo.";
+        }
+      } finally {
+        botao.disabled = false;
+      }
+    });
+
+    function voltarShopify() {
+      if (orderId && /Android/i.test(navigator.userAgent || "")) {
+        const fallback = "https://admin.shopify.com";
+        const intent =
+          "intent://admin/orders/" +
+          encodeURIComponent(orderId) +
+          "#Intent;scheme=shopify;package=com.shopify.mobile;" +
+          "S.browser_fallback_url=" + encodeURIComponent(fallback) + ";end";
+        location.href = intent;
+        return;
+      }
+
+      if (history.length > 1) {
+        history.back();
+        return;
+      }
+
+      if (orderId) {
+        location.href = "shopify://admin/orders/" + encodeURIComponent(orderId);
+      }
+    }
+
+    voltar.addEventListener("click", voltarShopify);
+  </script>
+</body>
+</html>
