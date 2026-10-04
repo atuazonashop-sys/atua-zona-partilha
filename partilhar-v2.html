@@ -496,17 +496,12 @@
     function voltarAoShopify() {
       estadoEl.textContent = "A voltar ao Shopify...";
 
-      if (history.length > 1) {
-        history.back();
-        return;
-      }
-
       window.close();
 
       setTimeout(function () {
         estadoEl.textContent =
-          "Fecha esta página para voltar ao Shopify.";
-      }, 400);
+          "Fecha este separador para voltar ao Shopify.";
+      }, 500);
     }
 
     marcarFornecedorEl.addEventListener("click", function () {
