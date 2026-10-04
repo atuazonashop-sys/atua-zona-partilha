@@ -206,6 +206,7 @@
     const dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
+    const retornoBrowser = params.get("retorno") === "browser";
     const modoConsulta = params.get("consulta") === "1";
     const variosProdutos = produtos.length > 1;
 
@@ -491,6 +492,11 @@
 
     marcarFornecedorEl.addEventListener("click", function () {
       if (modoConsulta) {
+        if (retornoBrowser && history.length > 1) {
+          history.back();
+          return;
+        }
+
         window.close();
 
         setTimeout(function () {
@@ -508,6 +514,12 @@
       guardarEstado({concluido: true});
 
       estadoEl.textContent = "A voltar ao Shopify...";
+
+      if (retornoBrowser && history.length > 1) {
+        history.back();
+        return;
+      }
+
       window.close();
 
       setTimeout(function () {
