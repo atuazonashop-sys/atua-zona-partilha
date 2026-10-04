@@ -173,6 +173,49 @@
     const enviarClienteEl = document.getElementById("enviarCliente");
     const marcarFornecedorEl = document.getElementById("marcarFornecedor");
 
+    function normalizarTextoSimples(valor) {
+      return String(valor || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+    }
+
+    function sanitizarTextoProduto(textoOriginal, tituloProduto) {
+      const titulo = normalizarTextoSimples(tituloProduto);
+      const ocultarModelo =
+        titulo.includes("casaco") ||
+        titulo.includes("kit infantil") ||
+        titulo.includes("kits infantis") ||
+        titulo.includes("fato de treino") ||
+        titulo.includes("fatos de treino");
+
+      return String(textoOriginal || "")
+        .split(/\r?\n/)
+        .map(function (linha) {
+          return linha.trim();
+        })
+        .filter(function (linha) {
+          if (!linha) return false;
+
+          const numero = linha.match(/^n[uú]mero\s*:\s*(.*)$/i);
+          if (numero) {
+            return /^\d{1,3}$/.test(String(numero[1] || "").trim());
+          }
+
+          if (/^nome\s*:\s*$/i.test(linha)) return false;
+          if (/^patch\s*:\s*$/i.test(linha)) return false;
+
+          if (ocultarModelo && /^modelo\s*:/i.test(linha)) {
+            return false;
+          }
+
+          return true;
+        })
+        .join("\n")
+        .trim();
+    }
+
     function obterProdutos() {
       const produtosJson = params.get("produtos");
 
@@ -186,7 +229,10 @@
                 titulo: String(produto.titulo || "Produto " + (index + 1))
                   .replace(/^Produto\s+\d+\s*:\s*/i, ""),
                 imagem: String(produto.imagem || ""),
-                texto: String(produto.texto || ""),
+                texto: sanitizarTextoProduto(
+                  String(produto.texto || ""),
+                  String(produto.titulo || ""),
+                ),
               };
             });
           }
@@ -198,7 +244,10 @@
       return [{
         titulo: params.get("titulo") || "Produto",
         imagem: params.get("imagem") || "",
-        texto: params.get("texto") || "",
+        texto: sanitizarTextoProduto(
+          params.get("texto") || "",
+          params.get("titulo") || "",
+        ),
       }];
     }
 
