@@ -843,26 +843,23 @@
 
     restaurarEstado();
 
-    function criarIntentShopifyAndroid(url) {
-      try {
-        const destino = new URL(url);
+    function criarIntentShopifyAndroid(orderId, fallbackUrl) {
+      const id = encodeURIComponent(String(orderId || "").trim());
 
-        return (
-          "intent://" +
-          destino.host +
-          destino.pathname +
-          destino.search +
-          destino.hash +
-          "#Intent;" +
-          "scheme=https;" +
-          "package=com.shopify.mobile;" +
-          "S.browser_fallback_url=" +
-          encodeURIComponent(url) +
-          ";end"
-        );
-      } catch (_erro) {
+      if (!id) {
         return "";
       }
+
+      return (
+        "intent://admin/orders/" +
+        id +
+        "#Intent;" +
+        "scheme=shopify;" +
+        "package=com.shopify.mobile;" +
+        "S.browser_fallback_url=" +
+        encodeURIComponent(fallbackUrl || "") +
+        ";end"
+      );
     }
 
     function voltarAoShopify() {
@@ -871,7 +868,7 @@
       if (retornoApp && orderId) {
         if (ambienteAndroid() && returnUrl) {
           const intentShopify =
-            criarIntentShopifyAndroid(returnUrl);
+            criarIntentShopifyAndroid(orderId, returnUrl);
 
           if (intentShopify) {
             window.location.href = intentShopify;
