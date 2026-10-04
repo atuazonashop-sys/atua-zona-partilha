@@ -863,38 +863,31 @@
     }
 
     function voltarAoShopify() {
-      estadoEl.textContent = "A voltar à encomenda no Shopify...";
+      estadoEl.textContent = "A voltar ao Shopify...";
 
-      if (retornoApp && orderId) {
-        if (ambienteAndroid() && returnUrl) {
-          const intentShopify =
-            criarIntentShopifyAndroid(orderId, returnUrl);
-
-          if (intentShopify) {
-            window.location.href = intentShopify;
-            return;
-          }
-        }
-
-        const deepLinkShopify =
-          "shopify://admin/orders/" + encodeURIComponent(orderId);
-
+      if (retornoApp) {
+        // Na app Shopify a página é aberta no mesmo contexto.
+        // Voltar no histórico mantém o utilizador dentro da app,
+        // em vez de abrir o Shopify Admin no browser.
         try {
-          window.location.href = deepLinkShopify;
-        } catch (_erro) {
-          // Mantém o fallback abaixo.
-        }
-
-        setTimeout(function () {
-          if (returnUrl) {
-            window.location.href = returnUrl;
+          if (window.history.length > 1) {
+            window.history.back();
             return;
           }
+        } catch (_erro) {}
 
-          estadoEl.textContent =
-            "Volta à app Shopify para continuar na encomenda.";
-        }, 1200);
+        if (orderId) {
+          const deepLinkShopify =
+            "shopify://admin/orders/" + encodeURIComponent(orderId);
 
+          try {
+            window.location.href = deepLinkShopify;
+            return;
+          } catch (_erro) {}
+        }
+
+        estadoEl.textContent =
+          "Volta à app Shopify para continuar na encomenda.";
         return;
       }
 
