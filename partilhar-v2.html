@@ -921,12 +921,20 @@
 
       if (retornoApp || modoRetorno === "app") {
         if (ambienteAndroid()) {
-          // Abre apenas a app Shopify, sem navegar novamente para a
-          // encomenda. O objetivo é trazer para a frente o estado que
-          // já estava aberto antes de sair para o browser/WhatsApp,
-          // incluindo a janela "Preparar pedido fornecedor".
+          // Não abre uma encomenda específica e não faz deep link para
+          // uma rota do Admin. Apenas traz a tarefa já existente da app
+          // Shopify novamente para a frente, para tentar preservar
+          // exatamente o ecrã/modal que estava aberto antes de sair.
+          const intentTrazerShopifyParaFrente =
+            "intent:#Intent;" +
+            "action=android.intent.action.MAIN;" +
+            "category=android.intent.category.LAUNCHER;" +
+            "package=com.shopify.mobile;" +
+            "launchFlags=0x10000000;" +
+            "end";
+
           try {
-            window.location.href = "shopify://";
+            window.location.href = intentTrazerShopifyParaFrente;
             return;
           } catch (_erro) {}
         }
