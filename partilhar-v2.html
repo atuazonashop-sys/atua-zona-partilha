@@ -759,6 +759,59 @@
         }
 
         if (ambienteAndroid()) {
+          // Primeiro tenta a partilha nativa do Android com a fotografia
+          // anexada como ficheiro + os dados do produto como texto.
+          try {
+            if (navigator.share) {
+              const ficheiro = await ficheiroImagemOriginal(produto, index);
+
+              const podePartilharFicheiro =
+                !navigator.canShare ||
+                navigator.canShare({files: [ficheiro]});
+
+              if (podePartilharFicheiro) {
+                estadoEl.textContent =
+                  "Escolhe o WhatsApp para enviar a imagem + os dados.";
+
+                await navigator.share({
+                  title: "Produto " + (index + 1),
+                  text: produto.texto,
+                  files: [ficheiro],
+                });
+
+                guardarEstado({["produto" + index]: true});
+                marcarBotaoEnviado(
+                  botao,
+                  "Produto " + (index + 1) + " enviado ✓",
+                );
+
+                estadoEl.textContent =
+                  "Imagem + dados partilhados ✓";
+
+                const proximoBloco = blocosProdutos[index + 1];
+
+                if (proximoBloco) {
+                  irParaElemento(proximoBloco, "start");
+                } else {
+                  irParaElemento(marcarFornecedorEl, "center");
+                }
+
+                return;
+              }
+            }
+          } catch (erroPartilha) {
+            if (erroPartilha && erroPartilha.name === "AbortError") {
+              estadoEl.textContent = "";
+              return;
+            }
+
+            console.warn(
+              "A partilha nativa com ficheiro falhou; a usar o método alternativo:",
+              erroPartilha,
+            );
+          }
+
+          // Fallback: comportamento anterior.
           let imagemCopiada = false;
 
           try {
