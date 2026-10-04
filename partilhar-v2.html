@@ -306,7 +306,7 @@
               ? "Enviar produto " + (index + 1)
               : "Enviar produto + dados"
           )
-        : "Copiar imagem do produto " + (index + 1);
+        : "Copiar produto " + (index + 1) + " (imagem + dados)";
 
       botoesProdutos.push(botao);
 
@@ -315,40 +315,6 @@
       });
 
       bloco.appendChild(botao);
-
-      if (!ambienteMovel()) {
-        const botaoDados = document.createElement("button");
-        botaoDados.type = "button";
-        botaoDados.className = "botao-enviar";
-        botaoDados.textContent = "Copiar dados do produto " + (index + 1);
-
-        botaoDados.addEventListener("click", async function () {
-          try {
-            await copiarTextoParaClipboard(produto.texto);
-
-            const estadoAtual = lerEstado();
-            const parcial = {["produtoDados" + index]: true};
-
-            if (estadoAtual["produtoImagem" + index]) {
-              parcial["produto" + index] = true;
-            }
-
-            guardarEstado(parcial);
-
-            botaoDados.textContent =
-              "Dados do produto " + (index + 1) + " copiados ✓";
-            botaoDados.classList.add("botao-enviado");
-            estadoEl.textContent =
-              "Dados do produto copiados. Cola-os no WhatsApp.";
-          } catch (erro) {
-            console.error(erro);
-            estadoEl.textContent =
-              "Não foi possível copiar os dados deste produto.";
-          }
-        });
-
-        bloco.appendChild(botaoDados);
-      }
 
       produtosEl.appendChild(bloco);
     });
@@ -602,6 +568,39 @@
       await navigator.clipboard.writeText(String(texto || ""));
     }
 
+    async function copiarProdutoCompletoParaClipboard(produto) {
+      if (
+        !navigator.clipboard ||
+        typeof navigator.clipboard.write !== "function" ||
+        typeof ClipboardItem === "undefined"
+      ) {
+        throw new Error("Clipboard completo indisponível.");
+      }
+
+      if (!produto.imagem) {
+        throw new Error("Produto sem imagem.");
+      }
+
+      const pngPrometido = (async function () {
+        const blobOriginal = await carregarBlobImagem(produto.imagem);
+        return await blobParaPng(blobOriginal);
+      })();
+
+      const textoBlob = new Blob(
+        [String(produto.texto || "")],
+        {type: "text/plain"},
+      );
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "image/png": pngPrometido,
+          "text/plain": textoBlob,
+        }),
+      ]);
+
+      await pngPrometido;
+    }
+
     async function copiarImagemParaClipboard(produto) {
       if (
         !navigator.clipboard ||
@@ -647,7 +646,9 @@
         if (estado["produto" + index]) {
           marcarBotaoEnviado(
             botao,
-            "Produto " + (index + 1) + " enviado ✓",
+            ambienteMovel()
+              ? "Produto " + (index + 1) + " enviado ✓"
+              : "Produto " + (index + 1) + " copiado ✓",
           );
         }
       });
@@ -726,24 +727,17 @@
 
       try {
         if (!ambienteMovel()) {
-          await copiarImagemParaClipboard(produto);
+          await copiarProdutoCompletoParaClipboard(produto);
 
-          const estadoAtual = lerEstado();
-          const parcial = {["produtoImagem" + index]: true};
-
-          if (estadoAtual["produtoDados" + index]) {
-            parcial["produto" + index] = true;
-          }
-
-          guardarEstado(parcial);
+          guardarEstado({["produto" + index]: true});
 
           marcarBotaoEnviado(
             botao,
-            "Imagem do produto " + (index + 1) + " copiada ✓",
+            "Produto " + (index + 1) + " copiado ✓",
           );
 
           estadoEl.textContent =
-            "Imagem copiada. Cola-a no WhatsApp com Ctrl+V e depois copia os dados do produto.";
+            "Imagem + dados copiados juntos. No WhatsApp Web, prime Ctrl+V para testar.";
 
           return;
         }
