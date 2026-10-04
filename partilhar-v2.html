@@ -642,28 +642,24 @@
 
       try {
         if (!ambienteMovel()) {
-          const janelaWhatsApp = window.open("about:blank", "atua-zona-whatsapp");
+          // Inicia a cópia imediatamente no clique para manter a autorização
+          // do browser e abre logo o WhatsApp Web, sem passar por about:blank.
+          const promessaClipboard = copiarImagemParaClipboard(produto);
+
+          abrirWhatsAppComTexto(produto.texto);
 
           try {
-            await copiarImagemParaClipboard(produto);
+            await promessaClipboard;
           } catch (erroClipboard) {
             console.error(
               "Não foi possível copiar automaticamente a imagem:",
               erroClipboard,
             );
 
-            if (janelaWhatsApp && !janelaWhatsApp.closed) {
-              try {
-                janelaWhatsApp.close();
-              } catch (_erro) {}
-            }
-
             throw new Error(
-              "Não foi possível preparar a imagem. Tenta novamente.",
+              "O WhatsApp abriu, mas não foi possível copiar a imagem. Tenta novamente.",
             );
           }
-
-          abrirWhatsAppComTexto(produto.texto, janelaWhatsApp);
 
           guardarEstado({["produto" + index]: true});
           marcarBotaoEnviado(
