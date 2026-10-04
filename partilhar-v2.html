@@ -915,6 +915,26 @@
       );
     }
 
+    function voltarAoShopifyMantendoJanela() {
+      estadoEl.textContent =
+        "A voltar à app Shopify para continuar o pedido...";
+
+      if (retornoApp || modoRetorno === "app") {
+        if (ambienteAndroid()) {
+          // Abre apenas a app Shopify, sem navegar novamente para a
+          // encomenda. O objetivo é trazer para a frente o estado que
+          // já estava aberto antes de sair para o browser/WhatsApp,
+          // incluindo a janela "Preparar pedido fornecedor".
+          try {
+            window.location.href = "shopify://";
+            return;
+          } catch (_erro) {}
+        }
+      }
+
+      voltarAoShopify();
+    }
+
     function voltarAoShopify() {
       estadoEl.textContent = "A voltar ao Shopify...";
 
@@ -974,7 +994,7 @@
       }
 
       guardarEstado({concluido: true});
-      voltarAoShopify();
+      voltarAoShopifyMantendoJanela();
     });
 
     fecharEl.addEventListener("click", function () {
