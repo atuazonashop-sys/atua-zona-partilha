@@ -916,30 +916,10 @@
     }
 
     function voltarAoShopifyMantendoJanela() {
-      estadoEl.textContent =
-        "A voltar à app Shopify para continuar o pedido...";
-
-      if (retornoApp || modoRetorno === "app") {
-        if (ambienteAndroid()) {
-          // Não abre uma encomenda específica e não faz deep link para
-          // uma rota do Admin. Apenas traz a tarefa já existente da app
-          // Shopify novamente para a frente, para tentar preservar
-          // exatamente o ecrã/modal que estava aberto antes de sair.
-          const intentTrazerShopifyParaFrente =
-            "intent:#Intent;" +
-            "action=android.intent.action.MAIN;" +
-            "category=android.intent.category.LAUNCHER;" +
-            "package=com.shopify.mobile;" +
-            "launchFlags=0x10000000;" +
-            "end";
-
-          try {
-            window.location.href = intentTrazerShopifyParaFrente;
-            return;
-          } catch (_erro) {}
-        }
-      }
-
+      // A Shopify não disponibiliza um deep link público para reabrir
+      // diretamente uma Admin Action já no passo em que estava.
+      // Mantém o regresso estável à encomenda; a Action recupera o passo
+      // através da tag temporária quando for aberta novamente.
       voltarAoShopify();
     }
 
