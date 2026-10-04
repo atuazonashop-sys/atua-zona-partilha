@@ -205,6 +205,7 @@
     const produtos = obterProdutos();
     const dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
+    const modoConsulta = params.get("consulta") === "1";
     const variosProdutos = produtos.length > 1;
 
     tituloPaginaEl.textContent = variosProdutos
@@ -344,6 +345,13 @@
     function atualizarBotaoFinal() {
       const concluido = tudoEnviado();
 
+      if (modoConsulta) {
+        marcarFornecedorEl.disabled = false;
+        marcarFornecedorEl.textContent = "Fechar";
+        fecharEl.classList.add("oculto");
+        return;
+      }
+
       marcarFornecedorEl.disabled = !concluido;
       marcarFornecedorEl.textContent = concluido
         ? "Voltar ao Shopify para marcar"
@@ -481,6 +489,17 @@
     restaurarEstado();
 
     marcarFornecedorEl.addEventListener("click", function () {
+      if (modoConsulta) {
+        window.close();
+
+        setTimeout(function () {
+          estadoEl.textContent =
+            "Fecha este separador para voltar ao Shopify.";
+        }, 400);
+
+        return;
+      }
+
       if (!tudoEnviado()) {
         return;
       }
