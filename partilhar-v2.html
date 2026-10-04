@@ -173,6 +173,8 @@
     const enviarClienteEl = document.getElementById("enviarCliente");
     const marcarFornecedorEl = document.getElementById("marcarFornecedor");
 
+    let janelaWhatsAppControlada = null;
+
     function normalizarTextoSimples(valor) {
       return String(valor || "")
         .toLowerCase()
@@ -473,15 +475,35 @@
         : linkWhatsAppWebTexto(texto);
 
       if (!ambienteMovel()) {
-        // Mantém a página do fornecedor aberta e usa sempre
-        // o mesmo separador controlado para o WhatsApp Web.
-        const janelaWhatsApp = window.open(
+        // Reutiliza a referência exata ao primeiro separador do WhatsApp.
+        // Não depende de window.name, que o browser pode perder ao navegar
+        // para outro domínio.
+        if (
+          janelaWhatsAppControlada &&
+          !janelaWhatsAppControlada.closed
+        ) {
+          try {
+            janelaWhatsAppControlada.location.href = url;
+            janelaWhatsAppControlada.focus();
+            return;
+          } catch (_erro) {
+            janelaWhatsAppControlada = null;
+          }
+        }
+
+        janelaWhatsAppControlada = window.open(
           url,
-          "atua-zona-whatsapp",
+          "_blank",
         );
 
+        if (!janelaWhatsAppControlada) {
+          throw new Error(
+            "O browser bloqueou a abertura do WhatsApp.",
+          );
+        }
+
         try {
-          janelaWhatsApp?.focus();
+          janelaWhatsAppControlada.focus();
         } catch (_erro) {}
 
         return;
