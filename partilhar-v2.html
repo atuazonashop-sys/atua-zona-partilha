@@ -213,9 +213,7 @@
     const modoConsulta = params.get("consulta") === "1";
     const variosProdutos = produtos.length > 1;
 
-    tituloPaginaEl.textContent = variosProdutos
-      ? "Enviar pedido ao fornecedor"
-      : produtos[0].titulo;
+    tituloPaginaEl.textContent = "Enviar pedido ao fornecedor";
 
     if (dadosCliente) {
       clienteTextoEl.textContent = dadosCliente;
@@ -232,15 +230,13 @@
       blocosProdutos.push(bloco);
 
       const titulo = document.createElement("h2");
-      titulo.textContent = variosProdutos
-        ? "Produto " + (index + 1) + ": " + produto.titulo
-        : produto.titulo;
+      titulo.textContent = "Produto " + (index + 1);
       bloco.appendChild(titulo);
 
       if (produto.imagem) {
         const imagem = document.createElement("img");
         imagem.src = produto.imagem;
-        imagem.alt = produto.titulo;
+        imagem.alt = "Produto " + (index + 1);
         bloco.appendChild(imagem);
       }
 
@@ -308,7 +304,7 @@
 
       return new File(
         [blob],
-        nomeSeguro(produto.titulo || "produto-" + (index + 1)) + "." + extensao,
+        "produto-" + (index + 1) + "." + extensao,
         {type: tipo},
       );
     }
@@ -457,7 +453,7 @@
         estadoEl.textContent = "";
 
         await navigator.share({
-          title: produto.titulo,
+          title: "Produto " + (index + 1),
           text: produto.texto,
           files: [ficheiro],
         });
