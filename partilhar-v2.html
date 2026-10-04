@@ -530,14 +530,26 @@
         throw new Error("Clipboard de imagem indisponível.");
       }
 
-      const blobOriginal = await carregarBlobImagem(produto.imagem);
-      const blobPng = await blobParaPng(blobOriginal);
+      if (!produto.imagem) {
+        throw new Error("Produto sem imagem.");
+      }
+
+      // Importante: chama clipboard.write imediatamente no clique.
+      // O carregamento/conversão da imagem continua através de uma Promise,
+      // preservando a autorização de escrita do browser.
+      const pngPrometido = (async function () {
+        const blobOriginal = await carregarBlobImagem(produto.imagem);
+        return await blobParaPng(blobOriginal);
+      })();
 
       await navigator.clipboard.write([
         new ClipboardItem({
-          "image/png": blobPng,
+          "image/png": pngPrometido,
         }),
       ]);
+
+      // Garante que a Promise terminou sem erro antes de considerar pronto.
+      await pngPrometido;
     }
 
     function restaurarEstado() {
@@ -632,15 +644,22 @@
         if (!ambienteMovel()) {
           const janelaWhatsApp = window.open("about:blank", "atua-zona-whatsapp");
 
-          let imagemCopiada = false;
-
           try {
             await copiarImagemParaClipboard(produto);
-            imagemCopiada = true;
           } catch (erroClipboard) {
-            console.warn(
+            console.error(
               "Não foi possível copiar automaticamente a imagem:",
               erroClipboard,
+            );
+
+            if (janelaWhatsApp && !janelaWhatsApp.closed) {
+              try {
+                janelaWhatsApp.close();
+              } catch (_erro) {}
+            }
+
+            throw new Error(
+              "Não foi possível preparar a imagem. Tenta novamente.",
             );
           }
 
@@ -652,9 +671,8 @@
             "Produto " + (index + 1) + " preparado ✓",
           );
 
-          estadoEl.textContent = imagemCopiada
-            ? "WhatsApp aberto. Escolhe o contacto ou grupo e prime Ctrl+V para colar a imagem."
-            : "WhatsApp aberto. Escolhe o contacto ou grupo. Se necessário, adiciona a imagem manualmente.";
+          estadoEl.textContent =
+            "Imagem copiada ✓ No WhatsApp, escolhe o contacto/grupo e prime Ctrl+V antes de enviar.";
 
           const proximoBloco = blocosProdutos[index + 1];
 
