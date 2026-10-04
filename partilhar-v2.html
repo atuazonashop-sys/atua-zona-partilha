@@ -843,10 +843,42 @@
 
     restaurarEstado();
 
+    function criarIntentShopifyAndroid(url) {
+      try {
+        const destino = new URL(url);
+
+        return (
+          "intent://" +
+          destino.host +
+          destino.pathname +
+          destino.search +
+          destino.hash +
+          "#Intent;" +
+          "scheme=https;" +
+          "package=com.shopify.mobile;" +
+          "S.browser_fallback_url=" +
+          encodeURIComponent(url) +
+          ";end"
+        );
+      } catch (_erro) {
+        return "";
+      }
+    }
+
     function voltarAoShopify() {
-      estadoEl.textContent = "A voltar ao Shopify...";
+      estadoEl.textContent = "A voltar à encomenda no Shopify...";
 
       if (retornoApp && orderId) {
+        if (ambienteAndroid() && returnUrl) {
+          const intentShopify =
+            criarIntentShopifyAndroid(returnUrl);
+
+          if (intentShopify) {
+            window.location.href = intentShopify;
+            return;
+          }
+        }
+
         const deepLinkShopify =
           "shopify://admin/orders/" + encodeURIComponent(orderId);
 
@@ -857,12 +889,13 @@
         }
 
         setTimeout(function () {
-          try {
-            window.close();
-          } catch (_erro) {}
+          if (returnUrl) {
+            window.location.href = returnUrl;
+            return;
+          }
 
           estadoEl.textContent =
-            "Se a app Shopify não abrir automaticamente, volta à app Shopify.";
+            "Volta à app Shopify para continuar na encomenda.";
         }, 1200);
 
         return;
