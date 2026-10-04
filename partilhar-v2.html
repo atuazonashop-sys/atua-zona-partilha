@@ -474,6 +474,17 @@
 
       if (janelaExistente && !janelaExistente.closed) {
         janelaExistente.location.href = url;
+        try {
+          janelaExistente.focus();
+        } catch (_erro) {}
+        return;
+      }
+
+      if (!ambienteMovel()) {
+        const janelaWhatsApp = window.open(url, "atua-zona-whatsapp");
+        try {
+          janelaWhatsApp?.focus();
+        } catch (_erro) {}
         return;
       }
 
@@ -619,7 +630,7 @@
 
       try {
         if (!ambienteMovel()) {
-          const janelaWhatsApp = window.open("about:blank", "_blank");
+          const janelaWhatsApp = window.open("about:blank", "atua-zona-whatsapp");
 
           let imagemCopiada = false;
 
