@@ -357,13 +357,13 @@
       botao.classList.add("botao-enviado");
     }
 
-    function irParaElemento(elemento) {
+    function irParaElemento(elemento, posicao) {
       if (!elemento) return;
 
       setTimeout(function () {
         elemento.scrollIntoView({
           behavior: "smooth",
-          block: "center",
+          block: posicao || "start",
         });
       }, 250);
     }
@@ -410,7 +410,7 @@
             enviarClienteEl,
             "Dados do cliente enviados ✓",
           );
-          irParaElemento(botoesProdutos[0]);
+          irParaElemento(blocosProdutos[0], "start");
           return;
         }
 
@@ -455,12 +455,12 @@
           "Produto " + (index + 1) + " enviado ✓",
         );
 
-        const proximoBotao = botoesProdutos[index + 1];
+        const proximoBloco = blocosProdutos[index + 1];
 
-        if (proximoBotao) {
-          irParaElemento(proximoBotao);
+        if (proximoBloco) {
+          irParaElemento(proximoBloco, "start");
         } else {
-          irParaElemento(marcarFornecedorEl);
+          irParaElemento(marcarFornecedorEl, "center");
         }
       } catch (erro) {
         if (erro && erro.name === "AbortError") {
