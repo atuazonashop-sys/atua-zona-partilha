@@ -426,6 +426,76 @@
       }, 250);
     }
 
+    function ambienteMovel() {
+      return /Android|iPhone|iPad|iPod/i.test(
+        String(navigator.userAgent || ""),
+      );
+    }
+
+    function linkWhatsAppTexto(texto) {
+      return "https://wa.me/?text=" + encodeURIComponent(String(texto || ""));
+    }
+
+    function abrirWhatsAppComTexto(texto, janelaExistente) {
+      const url = linkWhatsAppTexto(texto);
+
+      if (janelaExistente && !janelaExistente.closed) {
+        janelaExistente.location.href = url;
+        return;
+      }
+
+      window.open(url, "_blank", "noopener");
+    }
+
+    async function blobParaPng(blob) {
+      if (String(blob.type || "").toLowerCase() === "image/png") {
+        return blob;
+      }
+
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+
+      const contexto = canvas.getContext("2d");
+      if (!contexto) {
+        bitmap.close();
+        throw new Error("Não foi possível preparar a imagem.");
+      }
+
+      contexto.drawImage(bitmap, 0, 0);
+      bitmap.close();
+
+      return await new Promise(function (resolve, reject) {
+        canvas.toBlob(function (png) {
+          if (png) {
+            resolve(png);
+          } else {
+            reject(new Error("Não foi possível converter a imagem."));
+          }
+        }, "image/png");
+      });
+    }
+
+    async function copiarImagemParaClipboard(produto) {
+      if (
+        !navigator.clipboard ||
+        typeof navigator.clipboard.write !== "function" ||
+        typeof ClipboardItem === "undefined"
+      ) {
+        throw new Error("Clipboard de imagem indisponível.");
+      }
+
+      const blobOriginal = await carregarBlobImagem(produto.imagem);
+      const blobPng = await blobParaPng(blobOriginal);
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "image/png": blobPng,
+        }),
+      ]);
+    }
+
     function restaurarEstado() {
       const estado = lerEstado();
 
@@ -456,6 +526,19 @@
           throw new Error("Não existem dados do cliente.");
         }
 
+        if (!ambienteMovel()) {
+          abrirWhatsAppComTexto(dadosCliente);
+          guardarEstado({cliente: true});
+          marcarBotaoEnviado(
+            enviarClienteEl,
+            "Dados do cliente preparados ✓",
+          );
+          estadoEl.textContent =
+            "WhatsApp aberto. Escolhe o contacto ou grupo e envia os dados.";
+          irParaElemento(blocosProdutos[0], "start");
+          return;
+        }
+
         if (navigator.share) {
           estadoEl.textContent = "";
           await navigator.share({
@@ -472,7 +555,7 @@
           return;
         }
 
-        location.href = "https://wa.me/?text=" + encodeURIComponent(dadosCliente);
+        location.href = linkWhatsAppTexto(dadosCliente);
       } catch (erro) {
         if (erro && erro.name === "AbortError") {
           estadoEl.textContent = "";
@@ -489,6 +572,44 @@
       botao.disabled = true;
 
       try {
+        if (!ambienteMovel()) {
+          const janelaWhatsApp = window.open("about:blank", "_blank");
+
+          let imagemCopiada = false;
+
+          try {
+            await copiarImagemParaClipboard(produto);
+            imagemCopiada = true;
+          } catch (erroClipboard) {
+            console.warn(
+              "Não foi possível copiar automaticamente a imagem:",
+              erroClipboard,
+            );
+          }
+
+          abrirWhatsAppComTexto(produto.texto, janelaWhatsApp);
+
+          guardarEstado({["produto" + index]: true});
+          marcarBotaoEnviado(
+            botao,
+            "Produto " + (index + 1) + " preparado ✓",
+          );
+
+          estadoEl.textContent = imagemCopiada
+            ? "WhatsApp aberto. Escolhe o contacto ou grupo e prime Ctrl+V para colar a imagem."
+            : "WhatsApp aberto. Escolhe o contacto ou grupo. Se necessário, adiciona a imagem manualmente.";
+
+          const proximoBloco = blocosProdutos[index + 1];
+
+          if (proximoBloco) {
+            irParaElemento(proximoBloco, "start");
+          } else {
+            irParaElemento(marcarFornecedorEl, "center");
+          }
+
+          return;
+        }
+
         if (!navigator.share || !navigator.canShare) {
           throw new Error("Este browser não suporta partilha de ficheiros.");
         }
@@ -528,7 +649,7 @@
 
         console.error(erro);
         estadoEl.textContent =
-          "Não foi possível enviar a imagem e os dados deste produto.";
+          "Não foi possível preparar este produto para o WhatsApp.";
       } finally {
         botao.disabled = false;
       }
