@@ -473,27 +473,27 @@
         : linkWhatsAppWebTexto(texto);
 
       if (!ambienteMovel()) {
-        // Guarda uma entrada extra no histórico antes de sair desta página.
-        // Assim, ao carregar em Voltar no browser depois do WhatsApp,
-        // regressa primeiro ao pedido do fornecedor em vez de saltar
-        // diretamente para o Shopify.
+        // Mantém a página do fornecedor aberta e usa sempre
+        // o mesmo separador controlado para o WhatsApp Web.
+        const janelaWhatsApp = window.open(
+          url,
+          "atua-zona-whatsapp",
+        );
+
         try {
-          history.pushState(
-            {atuaZonaFornecedor: true},
-            "",
-            window.location.href,
-          );
+          janelaWhatsApp?.focus();
         } catch (_erro) {}
 
-        window.location.assign(url);
         return;
       }
 
       if (janelaExistente && !janelaExistente.closed) {
         janelaExistente.location.href = url;
+
         try {
           janelaExistente.focus();
         } catch (_erro) {}
+
         return;
       }
 
@@ -592,11 +592,18 @@
         }
 
         if (!ambienteMovel()) {
-          guardarEstado({cliente: true});
-
-          // Abre o WhatsApp Web no mesmo separador.
-          // O botão Voltar do browser regressa ao pedido com o estado preservado.
           abrirWhatsAppComTexto(dadosCliente);
+
+          guardarEstado({cliente: true});
+          marcarBotaoEnviado(
+            enviarClienteEl,
+            "Dados do cliente preparados ✓",
+          );
+
+          estadoEl.textContent =
+            "WhatsApp aberto num separador próprio. A página do pedido fica aberta.";
+
+          irParaElemento(blocosProdutos[0], "start");
           return;
         }
 
@@ -647,15 +654,27 @@
 
       try {
         if (!ambienteMovel()) {
-          // Copia primeiro a imagem. Só depois navega o mesmo separador
-          // para o WhatsApp Web, evitando abrir uma segunda instância.
           await copiarImagemParaClipboard(produto);
 
-          guardarEstado({["produto" + index]: true});
-
-          // A navegação acontece por último. Ao carregar em Voltar no browser,
-          // o utilizador regressa a esta página e o estado fica preservado.
           abrirWhatsAppComTexto(produto.texto);
+
+          guardarEstado({["produto" + index]: true});
+          marcarBotaoEnviado(
+            botao,
+            "Produto " + (index + 1) + " preparado ✓",
+          );
+
+          estadoEl.textContent =
+            "Imagem copiada ✓ O WhatsApp abriu no separador próprio. Prime Ctrl+V para colar a imagem.";
+
+          const proximoBloco = blocosProdutos[index + 1];
+
+          if (proximoBloco) {
+            irParaElemento(proximoBloco, "start");
+          } else {
+            irParaElemento(marcarFornecedorEl, "center");
+          }
+
           return;
         }
 
