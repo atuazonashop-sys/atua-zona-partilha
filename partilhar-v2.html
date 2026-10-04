@@ -432,8 +432,32 @@
       );
     }
 
+    function ambienteAndroid() {
+      return /Android/i.test(String(navigator.userAgent || ""));
+    }
+
     function linkWhatsAppTexto(texto) {
       return "https://wa.me/?text=" + encodeURIComponent(String(texto || ""));
+    }
+
+    function linkWhatsAppBusinessAndroid(texto) {
+      const mensagem = encodeURIComponent(String(texto || ""));
+      const fallback = encodeURIComponent(linkWhatsAppTexto(texto));
+
+      return (
+        "intent://send?text=" +
+        mensagem +
+        "#Intent;" +
+        "scheme=whatsapp;" +
+        "package=com.whatsapp.w4b;" +
+        "S.browser_fallback_url=" +
+        fallback +
+        ";end"
+      );
+    }
+
+    function abrirWhatsAppPreferidoAndroid(texto) {
+      location.href = linkWhatsAppBusinessAndroid(texto);
     }
 
     function abrirWhatsAppComTexto(texto, janelaExistente) {
@@ -539,6 +563,19 @@
           return;
         }
 
+        if (ambienteAndroid()) {
+          abrirWhatsAppPreferidoAndroid(dadosCliente);
+          guardarEstado({cliente: true});
+          marcarBotaoEnviado(
+            enviarClienteEl,
+            "Dados do cliente preparados ✓",
+          );
+          estadoEl.textContent =
+            "A abrir o WhatsApp Business. Se não estiver instalado, será usado o WhatsApp normal.";
+          irParaElemento(blocosProdutos[0], "start");
+          return;
+        }
+
         if (navigator.share) {
           estadoEl.textContent = "";
           await navigator.share({
@@ -598,6 +635,42 @@
           estadoEl.textContent = imagemCopiada
             ? "WhatsApp aberto. Escolhe o contacto ou grupo e prime Ctrl+V para colar a imagem."
             : "WhatsApp aberto. Escolhe o contacto ou grupo. Se necessário, adiciona a imagem manualmente.";
+
+          const proximoBloco = blocosProdutos[index + 1];
+
+          if (proximoBloco) {
+            irParaElemento(proximoBloco, "start");
+          } else {
+            irParaElemento(marcarFornecedorEl, "center");
+          }
+
+          return;
+        }
+
+        if (ambienteAndroid()) {
+          let imagemCopiada = false;
+
+          try {
+            await copiarImagemParaClipboard(produto);
+            imagemCopiada = true;
+          } catch (erroClipboard) {
+            console.warn(
+              "Não foi possível copiar automaticamente a imagem:",
+              erroClipboard,
+            );
+          }
+
+          abrirWhatsAppPreferidoAndroid(produto.texto);
+
+          guardarEstado({["produto" + index]: true});
+          marcarBotaoEnviado(
+            botao,
+            "Produto " + (index + 1) + " preparado ✓",
+          );
+
+          estadoEl.textContent = imagemCopiada
+            ? "A abrir o WhatsApp Business. Escolhe o contacto ou grupo e cola a imagem."
+            : "A abrir o WhatsApp Business. Se não estiver instalado, será usado o WhatsApp normal.";
 
           const proximoBloco = blocosProdutos[index + 1];
 
