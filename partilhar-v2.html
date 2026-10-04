@@ -846,9 +846,38 @@
     function voltarAoShopify() {
       estadoEl.textContent = "A voltar ao Shopify...";
 
-      window.close();
+      if (retornoApp && orderId) {
+        const deepLinkShopify =
+          "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+        try {
+          window.location.href = deepLinkShopify;
+        } catch (_erro) {
+          // Mantém o fallback abaixo.
+        }
+
+        setTimeout(function () {
+          try {
+            window.close();
+          } catch (_erro) {}
+
+          estadoEl.textContent =
+            "Se a app Shopify não abrir automaticamente, volta à app Shopify.";
+        }, 1200);
+
+        return;
+      }
+
+      try {
+        window.close();
+      } catch (_erro) {}
 
       setTimeout(function () {
+        if (returnUrl) {
+          window.location.href = returnUrl;
+          return;
+        }
+
         estadoEl.textContent =
           "Fecha este separador para voltar ao Shopify.";
       }, 500);
