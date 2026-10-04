@@ -206,7 +206,7 @@
     const dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
-    const retorno = params.get("retorno") || "fechar";
+    const retorno = params.get("retorno") || "app";
     const retornoBrowser = retorno === "browser";
     const retornoApp = retorno === "app";
     const modoRetorno = params.get("modo_retorno") || "";
@@ -496,24 +496,27 @@
     function voltarAoShopify() {
       estadoEl.textContent = "A voltar ao Shopify...";
 
-      if (retornoApp && returnUrl) {
-        window.location.href = returnUrl;
-        return;
-      }
-
-      if (modoRetorno === "fechar") {
-        window.close();
+      if (retornoApp && orderId) {
+        window.location.href =
+          "shopify://admin/orders/" + encodeURIComponent(orderId);
 
         setTimeout(function () {
-          estadoEl.textContent =
-            "Fecha este separador para voltar ao Shopify.";
-        }, 400);
+          if (document.visibilityState === "visible") {
+            estadoEl.textContent =
+              "Se a app Shopify não abrir, volta manualmente à app.";
+          }
+        }, 1400);
 
         return;
       }
 
       if (retornoBrowser && history.length > 1) {
         history.back();
+        return;
+      }
+
+      if (retornoBrowser && returnUrl) {
+        window.location.href = returnUrl;
         return;
       }
 
