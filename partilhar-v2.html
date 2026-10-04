@@ -440,6 +440,13 @@
       return "https://wa.me/?text=" + encodeURIComponent(String(texto || ""));
     }
 
+    function linkWhatsAppWebTexto(texto) {
+      return (
+        "https://web.whatsapp.com/send?text=" +
+        encodeURIComponent(String(texto || ""))
+      );
+    }
+
     function linkWhatsAppBusinessAndroid(texto) {
       const mensagem = encodeURIComponent(String(texto || ""));
       const fallback = encodeURIComponent(linkWhatsAppTexto(texto));
@@ -461,7 +468,9 @@
     }
 
     function abrirWhatsAppComTexto(texto, janelaExistente) {
-      const url = linkWhatsAppTexto(texto);
+      const url = ambienteMovel()
+        ? linkWhatsAppTexto(texto)
+        : linkWhatsAppWebTexto(texto);
 
       if (janelaExistente && !janelaExistente.closed) {
         janelaExistente.location.href = url;
