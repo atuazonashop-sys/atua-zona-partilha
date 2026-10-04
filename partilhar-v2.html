@@ -863,7 +863,17 @@
     }
 
     function voltarAoShopify() {
-      estadoEl.textContent = "A voltar à app Shopify...";
+      estadoEl.textContent = "A voltar ao Shopify...";
+
+      // Quando a página foi aberta no mesmo contexto,
+      // regressa exatamente ao local de onde veio:
+      // app Shopify se veio da app, browser se veio do browser.
+      try {
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+      } catch (_erro) {}
 
       if (retornoApp || modoRetorno === "app") {
         if (ambienteAndroid() && orderId) {
@@ -885,14 +895,10 @@
             return;
           } catch (_erro) {}
         }
+      }
 
-        if (returnUrl) {
-          window.location.href = returnUrl;
-          return;
-        }
-
-        estadoEl.textContent =
-          "Volta à app Shopify para continuar na encomenda.";
+      if (returnUrl) {
+        window.location.href = returnUrl;
         return;
       }
 
@@ -900,15 +906,8 @@
         window.close();
       } catch (_erro) {}
 
-      setTimeout(function () {
-        if (returnUrl) {
-          window.location.href = returnUrl;
-          return;
-        }
-
-        estadoEl.textContent =
-          "Fecha este separador para voltar ao Shopify.";
-      }, 500);
+      estadoEl.textContent =
+        "Fecha este separador para voltar ao Shopify.";
     }
 
     marcarFornecedorEl.addEventListener("click", function () {
