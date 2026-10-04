@@ -472,18 +472,17 @@
         ? linkWhatsAppTexto(texto)
         : linkWhatsAppWebTexto(texto);
 
+      if (!ambienteMovel()) {
+        // No computador usa o mesmo separador para evitar
+        // uma segunda instância do WhatsApp Web/Business.
+        window.location.href = url;
+        return;
+      }
+
       if (janelaExistente && !janelaExistente.closed) {
         janelaExistente.location.href = url;
         try {
           janelaExistente.focus();
-        } catch (_erro) {}
-        return;
-      }
-
-      if (!ambienteMovel()) {
-        const janelaWhatsApp = window.open(url, "atua-zona-whatsapp");
-        try {
-          janelaWhatsApp?.focus();
         } catch (_erro) {}
         return;
       }
@@ -583,15 +582,11 @@
         }
 
         if (!ambienteMovel()) {
-          abrirWhatsAppComTexto(dadosCliente);
           guardarEstado({cliente: true});
-          marcarBotaoEnviado(
-            enviarClienteEl,
-            "Dados do cliente preparados ✓",
-          );
-          estadoEl.textContent =
-            "WhatsApp aberto. Escolhe o contacto ou grupo e envia os dados.";
-          irParaElemento(blocosProdutos[0], "start");
+
+          // Abre o WhatsApp Web no mesmo separador.
+          // O botão Voltar do browser regressa ao pedido com o estado preservado.
+          abrirWhatsAppComTexto(dadosCliente);
           return;
         }
 
@@ -642,42 +637,15 @@
 
       try {
         if (!ambienteMovel()) {
-          // Inicia a cópia imediatamente no clique para manter a autorização
-          // do browser e abre logo o WhatsApp Web, sem passar por about:blank.
-          const promessaClipboard = copiarImagemParaClipboard(produto);
-
-          abrirWhatsAppComTexto(produto.texto);
-
-          try {
-            await promessaClipboard;
-          } catch (erroClipboard) {
-            console.error(
-              "Não foi possível copiar automaticamente a imagem:",
-              erroClipboard,
-            );
-
-            throw new Error(
-              "O WhatsApp abriu, mas não foi possível copiar a imagem. Tenta novamente.",
-            );
-          }
+          // Copia primeiro a imagem. Só depois navega o mesmo separador
+          // para o WhatsApp Web, evitando abrir uma segunda instância.
+          await copiarImagemParaClipboard(produto);
 
           guardarEstado({["produto" + index]: true});
-          marcarBotaoEnviado(
-            botao,
-            "Produto " + (index + 1) + " preparado ✓",
-          );
 
-          estadoEl.textContent =
-            "Imagem copiada ✓ No WhatsApp, escolhe o contacto/grupo e prime Ctrl+V antes de enviar.";
-
-          const proximoBloco = blocosProdutos[index + 1];
-
-          if (proximoBloco) {
-            irParaElemento(proximoBloco, "start");
-          } else {
-            irParaElemento(marcarFornecedorEl, "center");
-          }
-
+          // A navegação acontece por último. Ao carregar em Voltar no browser,
+          // o utilizador regressa a esta página e o estado fica preservado.
+          abrirWhatsAppComTexto(produto.texto);
           return;
         }
 
