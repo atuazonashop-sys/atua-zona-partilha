@@ -300,9 +300,13 @@
       const botao = document.createElement("button");
       botao.type = "button";
       botao.className = "botao-enviar";
-      botao.textContent = variosProdutos
-        ? "Enviar produto " + (index + 1)
-        : "Enviar produto + dados";
+      botao.textContent = ambienteMovel()
+        ? (
+            variosProdutos
+              ? "Enviar produto " + (index + 1)
+              : "Enviar produto + dados"
+          )
+        : "Copiar imagem do produto " + (index + 1);
 
       botoesProdutos.push(botao);
 
@@ -311,6 +315,31 @@
       });
 
       bloco.appendChild(botao);
+
+      if (!ambienteMovel()) {
+        const botaoDados = document.createElement("button");
+        botaoDados.type = "button";
+        botaoDados.className = "botao-enviar";
+        botaoDados.textContent = "Copiar dados do produto " + (index + 1);
+
+        botaoDados.addEventListener("click", async function () {
+          try {
+            await copiarTextoParaClipboard(produto.texto);
+            botaoDados.textContent =
+              "Dados do produto " + (index + 1) + " copiados ✓";
+            botaoDados.classList.add("botao-enviado");
+            estadoEl.textContent =
+              "Dados do produto copiados. Cola-os no WhatsApp.";
+          } catch (erro) {
+            console.error(erro);
+            estadoEl.textContent =
+              "Não foi possível copiar os dados deste produto.";
+          }
+        });
+
+        bloco.appendChild(botaoDados);
+      }
+
       produtosEl.appendChild(bloco);
     });
 
@@ -552,6 +581,17 @@
       });
     }
 
+    async function copiarTextoParaClipboard(texto) {
+      if (
+        !navigator.clipboard ||
+        typeof navigator.clipboard.writeText !== "function"
+      ) {
+        throw new Error("Clipboard de texto indisponível.");
+      }
+
+      await navigator.clipboard.writeText(String(texto || ""));
+    }
+
     async function copiarImagemParaClipboard(produto) {
       if (
         !navigator.clipboard ||
@@ -614,16 +654,16 @@
         }
 
         if (!ambienteMovel()) {
-          abrirWhatsAppComTexto(dadosCliente);
+          await copiarTextoParaClipboard(dadosCliente);
 
           guardarEstado({cliente: true});
           marcarBotaoEnviado(
             enviarClienteEl,
-            "Dados do cliente preparados ✓",
+            "Dados do cliente copiados ✓",
           );
 
           estadoEl.textContent =
-            "WhatsApp aberto num separador próprio. A página do pedido fica aberta.";
+            "Dados do cliente copiados. Cola-os no WhatsApp que já tens aberto.";
 
           irParaElemento(blocosProdutos[0], "start");
           return;
@@ -678,24 +718,14 @@
         if (!ambienteMovel()) {
           await copiarImagemParaClipboard(produto);
 
-          abrirWhatsAppComTexto(produto.texto);
-
           guardarEstado({["produto" + index]: true});
           marcarBotaoEnviado(
             botao,
-            "Produto " + (index + 1) + " preparado ✓",
+            "Imagem do produto " + (index + 1) + " copiada ✓",
           );
 
           estadoEl.textContent =
-            "Imagem copiada ✓ O WhatsApp abriu no separador próprio. Prime Ctrl+V para colar a imagem.";
-
-          const proximoBloco = blocosProdutos[index + 1];
-
-          if (proximoBloco) {
-            irParaElemento(proximoBloco, "start");
-          } else {
-            irParaElemento(marcarFornecedorEl, "center");
-          }
+            "Imagem copiada. Cola-a no WhatsApp com Ctrl+V e depois copia os dados do produto.";
 
           return;
         }
