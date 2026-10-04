@@ -205,6 +205,7 @@
     const produtos = obterProdutos();
     const dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
+    const returnUrl = params.get("return_url") || "";
     const modoConsulta = params.get("consulta") === "1";
     const variosProdutos = produtos.length > 1;
 
@@ -506,33 +507,20 @@
 
       guardarEstado({concluido: true});
 
-      if (orderId) {
-        estadoEl.textContent = "A abrir a app Shopify...";
-
-        const orderPath =
-          "admin/orders/" + encodeURIComponent(orderId);
-
-        const isAndroid =
-          /Android/i.test(navigator.userAgent || "");
-
-        if (isAndroid) {
-          window.location.href =
-            "intent://" + orderPath +
-            "#Intent;scheme=shopify;package=com.shopify.mobile;end";
-        } else {
-          window.location.href =
-            "shopify://" + orderPath;
-        }
-
-        setTimeout(function () {
-          if (document.visibilityState === "visible") {
-            estadoEl.textContent =
-              "Se a app Shopify não abrir, toca novamente no botão.";
-          }
-        }, 1400);
-
+      if (returnUrl) {
+        estadoEl.textContent = "A voltar à encomenda...";
+        window.location.href = returnUrl;
         return;
       }
+
+      window.close();
+
+      setTimeout(function () {
+        estadoEl.textContent =
+          "Envio concluído. Volta à Shopify para marcar a encomenda.";
+      }, 400);
+
+      return;
 
       window.close();
 
