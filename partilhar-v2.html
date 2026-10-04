@@ -508,15 +508,28 @@
 
       if (orderId) {
         estadoEl.textContent = "A abrir a app Shopify...";
-        window.location.href =
-          "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+        const orderPath =
+          "admin/orders/" + encodeURIComponent(orderId);
+
+        const isAndroid =
+          /Android/i.test(navigator.userAgent || "");
+
+        if (isAndroid) {
+          window.location.href =
+            "intent://" + orderPath +
+            "#Intent;scheme=shopify;package=com.shopify.mobile;end";
+        } else {
+          window.location.href =
+            "shopify://" + orderPath;
+        }
 
         setTimeout(function () {
           if (document.visibilityState === "visible") {
             estadoEl.textContent =
-              "Se a app Shopify não abrir, volta manualmente à app Shopify.";
+              "Se a app Shopify não abrir, toca novamente no botão.";
           }
-        }, 1200);
+        }, 1400);
 
         return;
       }
