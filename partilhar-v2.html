@@ -325,6 +325,16 @@
         botaoDados.addEventListener("click", async function () {
           try {
             await copiarTextoParaClipboard(produto.texto);
+
+            const estadoAtual = lerEstado();
+            const parcial = {["produtoDados" + index]: true};
+
+            if (estadoAtual["produtoImagem" + index]) {
+              parcial["produto" + index] = true;
+            }
+
+            guardarEstado(parcial);
+
             botaoDados.textContent =
               "Dados do produto " + (index + 1) + " copiados ✓";
             botaoDados.classList.add("botao-enviado");
@@ -718,7 +728,15 @@
         if (!ambienteMovel()) {
           await copiarImagemParaClipboard(produto);
 
-          guardarEstado({["produto" + index]: true});
+          const estadoAtual = lerEstado();
+          const parcial = {["produtoImagem" + index]: true};
+
+          if (estadoAtual["produtoDados" + index]) {
+            parcial["produto" + index] = true;
+          }
+
+          guardarEstado(parcial);
+
           marcarBotaoEnviado(
             botao,
             "Imagem do produto " + (index + 1) + " copiada ✓",
