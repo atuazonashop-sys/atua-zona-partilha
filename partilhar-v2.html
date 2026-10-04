@@ -473,9 +473,19 @@
         : linkWhatsAppWebTexto(texto);
 
       if (!ambienteMovel()) {
-        // No computador usa o mesmo separador para evitar
-        // uma segunda instância do WhatsApp Web/Business.
-        window.location.href = url;
+        // Guarda uma entrada extra no histórico antes de sair desta página.
+        // Assim, ao carregar em Voltar no browser depois do WhatsApp,
+        // regressa primeiro ao pedido do fornecedor em vez de saltar
+        // diretamente para o Shopify.
+        try {
+          history.pushState(
+            {atuaZonaFornecedor: true},
+            "",
+            window.location.href,
+          );
+        } catch (_erro) {}
+
+        window.location.assign(url);
         return;
       }
 
