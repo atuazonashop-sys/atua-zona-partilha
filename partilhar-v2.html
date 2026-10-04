@@ -206,7 +206,10 @@
     const dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
-    const retornoBrowser = params.get("retorno") === "browser";
+    const retorno = params.get("retorno") || "browser";
+    const retornoBrowser = retorno === "browser";
+    const retornoApp = retorno === "app";
+    const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
     const variosProdutos = produtos.length > 1;
 
@@ -490,13 +493,15 @@
 
     restaurarEstado();
 
-    marcarFornecedorEl.addEventListener("click", function () {
-      if (modoConsulta) {
-        if (retornoBrowser && history.length > 1) {
-          history.back();
-          return;
-        }
+    function voltarAoShopify() {
+      estadoEl.textContent = "A voltar ao Shopify...";
 
+      if (retornoApp && returnUrl) {
+        window.location.href = returnUrl;
+        return;
+      }
+
+      if (modoRetorno === "fechar") {
         window.close();
 
         setTimeout(function () {
@@ -507,14 +512,6 @@
         return;
       }
 
-      if (!tudoEnviado()) {
-        return;
-      }
-
-      guardarEstado({concluido: true});
-
-      estadoEl.textContent = "A voltar ao Shopify...";
-
       if (retornoBrowser && history.length > 1) {
         history.back();
         return;
@@ -524,26 +521,26 @@
 
       setTimeout(function () {
         estadoEl.textContent =
-          "Fecha este separador para voltar à encomenda no Shopify.";
+          "Fecha este separador para voltar ao Shopify.";
       }, 400);
+    }
 
-      return;
+    marcarFornecedorEl.addEventListener("click", function () {
+      if (modoConsulta) {
+        voltarAoShopify();
+        return;
+      }
 
-      window.close();
+      if (!tudoEnviado()) {
+        return;
+      }
 
-      setTimeout(function () {
-        estadoEl.textContent =
-          "Envio concluído. Fecha este separador para voltar ao Shopify.";
-      }, 400);
+      guardarEstado({concluido: true});
+      voltarAoShopify();
     });
 
     fecharEl.addEventListener("click", function () {
-      window.close();
-
-      setTimeout(function () {
-        estadoEl.textContent =
-          "Fecha este separador para voltar ao Shopify.";
-      }, 400);
+      voltarAoShopify();
     });
   </script>
 </body>
