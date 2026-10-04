@@ -306,7 +306,7 @@
               ? "Enviar produto " + (index + 1)
               : "Enviar produto + dados"
           )
-        : "Copiar produto " + (index + 1) + " (imagem + dados)";
+        : "Copiar imagem do produto " + (index + 1);
 
       botoesProdutos.push(botao);
 
@@ -568,39 +568,6 @@
       await navigator.clipboard.writeText(String(texto || ""));
     }
 
-    async function copiarProdutoCompletoParaClipboard(produto) {
-      if (
-        !navigator.clipboard ||
-        typeof navigator.clipboard.write !== "function" ||
-        typeof ClipboardItem === "undefined"
-      ) {
-        throw new Error("Clipboard completo indisponível.");
-      }
-
-      if (!produto.imagem) {
-        throw new Error("Produto sem imagem.");
-      }
-
-      const pngPrometido = (async function () {
-        const blobOriginal = await carregarBlobImagem(produto.imagem);
-        return await blobParaPng(blobOriginal);
-      })();
-
-      const textoBlob = new Blob(
-        [String(produto.texto || "")],
-        {type: "text/plain"},
-      );
-
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          "image/png": pngPrometido,
-          "text/plain": textoBlob,
-        }),
-      ]);
-
-      await pngPrometido;
-    }
-
     async function copiarImagemParaClipboard(produto) {
       if (
         !navigator.clipboard ||
@@ -648,8 +615,17 @@
             botao,
             ambienteMovel()
               ? "Produto " + (index + 1) + " enviado ✓"
-              : "Produto " + (index + 1) + " copiado ✓",
+              : "Produto " + (index + 1) + " preparado ✓",
           );
+          return;
+        }
+
+        if (
+          !ambienteMovel() &&
+          estado["produtoImagem" + index]
+        ) {
+          botao.textContent =
+            "Copiar dados do produto " + (index + 1);
         }
       });
 
@@ -727,18 +703,58 @@
 
       try {
         if (!ambienteMovel()) {
-          await copiarProdutoCompletoParaClipboard(produto);
+          const estadoAtual = lerEstado();
+          const imagemJaCopiada =
+            Boolean(estadoAtual["produtoImagem" + index]);
+          const dadosJaCopiados =
+            Boolean(estadoAtual["produtoDados" + index]);
 
-          guardarEstado({["produto" + index]: true});
+          if (!imagemJaCopiada) {
+            await copiarImagemParaClipboard(produto);
 
-          marcarBotaoEnviado(
-            botao,
-            "Produto " + (index + 1) + " copiado ✓",
-          );
+            guardarEstado({
+              ["produtoImagem" + index]: true,
+            });
+
+            botao.textContent =
+              "Copiar dados do produto " + (index + 1);
+            botao.classList.remove("botao-enviado");
+
+            estadoEl.textContent =
+              "Imagem copiada ✓ Cola-a no WhatsApp com Ctrl+V. Depois volta aqui e carrega no mesmo botão para copiar os dados.";
+
+            return;
+          }
+
+          if (!dadosJaCopiados) {
+            await copiarTextoParaClipboard(produto.texto);
+
+            guardarEstado({
+              ["produtoDados" + index]: true,
+              ["produto" + index]: true,
+            });
+
+            marcarBotaoEnviado(
+              botao,
+              "Produto " + (index + 1) + " preparado ✓",
+            );
+
+            estadoEl.textContent =
+              "Dados copiados ✓ Cola-os no WhatsApp com Ctrl+V.";
+
+            const proximoBloco = blocosProdutos[index + 1];
+
+            if (proximoBloco) {
+              irParaElemento(proximoBloco, "start");
+            } else {
+              irParaElemento(marcarFornecedorEl, "center");
+            }
+
+            return;
+          }
 
           estadoEl.textContent =
-            "Imagem + dados copiados juntos. No WhatsApp Web, prime Ctrl+V para testar.";
-
+            "Este produto já foi preparado.";
           return;
         }
 
