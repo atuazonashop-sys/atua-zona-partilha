@@ -507,17 +507,12 @@
 
       guardarEstado({concluido: true});
 
-      if (returnUrl) {
-        estadoEl.textContent = "A voltar à encomenda...";
-        window.location.href = returnUrl;
-        return;
-      }
-
+      estadoEl.textContent = "A voltar ao Shopify...";
       window.close();
 
       setTimeout(function () {
         estadoEl.textContent =
-          "Envio concluído. Volta à Shopify para marcar a encomenda.";
+          "Fecha este separador para voltar à encomenda no Shopify.";
       }, 400);
 
       return;
