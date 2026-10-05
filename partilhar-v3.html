@@ -1200,19 +1200,11 @@
       estadoEl.textContent =
         "Envio preparado. A voltar ao Shopify para confirmar...";
 
-      // Não usa intent:// nem shopify://.
-      // Esses deep links fazem o Chrome mostrar a mensagem
-      // "Continuar para Shopify?". O objetivo aqui é simplesmente fechar
-      // o separador externo que foi aberto pela app Shopify, tal como
-      // acontece quando o utilizador carrega na tecla física Retroceder.
-      try {
-        window.close();
-      } catch (_erro) {}
-
-      // Alguns Android/Chrome não permitem fechar por JavaScript.
-      // Nesses casos tenta regressar pelo histórico, sem abrir outra app
-      // por deep link e sem provocar o aviso do Chrome.
-      setTimeout(function () {
+      // APP Shopify:
+      // a página é aberta no mesmo contexto (_self). Regressar no histórico
+      // devolve diretamente à Admin Action, sem intent://, sem shopify://
+      // e sem o aviso "Continuar para Shopify?" do Chrome.
+      if (retornoApp || modoRetorno === "app") {
         try {
           if (window.history.length > 1) {
             window.history.back();
@@ -1222,6 +1214,31 @@
 
         estadoEl.textContent =
           "Envio preparado. Usa a tecla Retroceder para voltar ao Shopify e confirmar.";
+        return;
+      }
+
+      // Browser/computador:
+      // a página é aberta num separador próprio. Fecha esse separador
+      // para revelar novamente o Admin Shopify que ficou por baixo.
+      try {
+        window.close();
+      } catch (_erro) {}
+
+      setTimeout(function () {
+        try {
+          if (window.history.length > 1) {
+            window.history.back();
+            return;
+          }
+        } catch (_erro) {}
+
+        if (returnUrl) {
+          window.location.href = returnUrl;
+          return;
+        }
+
+        estadoEl.textContent =
+          "Envio preparado. Fecha este separador para voltar ao Shopify e confirmar.";
       }, 350);
     }
 
