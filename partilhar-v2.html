@@ -1075,23 +1075,48 @@
       void prepararPedidoAutomaticamente();
     }
 
-    function criarIntentShopifyAndroid(orderId) {
+    function criarIntentShopifyAndroid(orderId, fallbackReturnUrl) {
       const id = encodeURIComponent(String(orderId || "").trim());
 
       if (!id) {
         return "";
       }
 
-      // Força explicitamente a app Shopify no Android.
-      // Não existe fallback para admin.shopify.com: se o fluxo começou
-      // na app, nunca deve acabar no browser.
+      // O esquema shopify:// funciona dentro do contexto do Admin/App Bridge,
+      // mas o Chrome só consegue abrir uma app quando existe um Intent Android
+      // BROWSABLE compatível. Por isso, no Android externo usa o URL HTTPS real
+      // da encomenda e força explicitamente o pacote oficial da Shopify.
+      const destinoHttps = String(fallbackReturnUrl || "").trim();
+
+      if (destinoHttps) {
+        try {
+          const url = new URL(destinoHttps);
+
+          if (/^https?:$/i.test(url.protocol)) {
+            return (
+              "intent://" +
+              url.host +
+              url.pathname +
+              url.search +
+              "#Intent;" +
+              "scheme=" +
+              url.protocol.replace(":", "") +
+              ";" +
+              "package=com.shopify.mobile;" +
+              "end"
+            );
+          }
+        } catch (_erro) {}
+      }
+
+      // Fallback sem browser: mantém o esquema administrativo da Shopify.
       return (
         "intent://admin/orders/" +
         id +
         "#Intent;" +
         "scheme=shopify;" +
         "package=com.shopify.mobile;" +
-        ";end"
+        "end"
       );
     }
 
@@ -1134,7 +1159,7 @@
         // da Shopify, sem qualquer fallback para o browser.
         const intentShopify =
           ambienteAndroid() && orderId
-            ? criarIntentShopifyAndroid(orderId)
+            ? criarIntentShopifyAndroid(orderId, returnUrl)
             : "";
 
         if (intentShopify) {
@@ -1172,7 +1197,7 @@
 
             const destino =
               ambienteAndroid()
-                ? criarIntentShopifyAndroid(orderId)
+                ? criarIntentShopifyAndroid(orderId, returnUrl)
                 : "shopify://admin/orders/" + encodeURIComponent(orderId);
 
             window.location.href = destino;
