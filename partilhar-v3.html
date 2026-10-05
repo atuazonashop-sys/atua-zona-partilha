@@ -1014,11 +1014,11 @@
                 if (proximoBloco) {
                   irParaElemento(proximoBloco, "start");
                 } else {
-                  const regressou = await sincronizarEVoltarAoShopify();
-
-                  if (!regressou) {
-                    irParaElemento(marcarFornecedorEl, "center");
-                  }
+                  // Não regressa automaticamente ao Shopify depois de partilhar
+                  // o último produto. O utilizador decide quando terminou e só
+                  // o botão final "Voltar ao Shopify para confirmar" altera o
+                  // metacampo para "Falta confirmar envio".
+                  irParaElemento(marcarFornecedorEl, "center");
                 }
 
                 return;
