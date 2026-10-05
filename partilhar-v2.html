@@ -1066,21 +1066,22 @@
       void prepararPedidoAutomaticamente();
     }
 
-    function criarIntentShopifyAndroid(orderId, fallbackUrl) {
+    function criarIntentShopifyAndroid(orderId) {
       const id = encodeURIComponent(String(orderId || "").trim());
 
       if (!id) {
         return "";
       }
 
+      // Força explicitamente a app Shopify no Android.
+      // Não existe fallback para admin.shopify.com: se o fluxo começou
+      // na app, nunca deve acabar no browser.
       return (
         "intent://admin/orders/" +
         id +
         "#Intent;" +
         "scheme=shopify;" +
         "package=com.shopify.mobile;" +
-        "S.browser_fallback_url=" +
-        encodeURIComponent(fallbackUrl || "") +
         ";end"
       );
     }
@@ -1120,38 +1121,60 @@
       // Se a fecharmos antes, o JavaScript termina e o deep link nunca chega
       // a ser executado, deixando o utilizador no Chrome.
       if (retornoApp || modoRetorno === "app") {
-        // Se o fluxo começou na app Shopify, nunca usa admin.shopify.com
-        // como fallback, porque isso manda o utilizador para o browser.
-        if (orderId) {
+        // APP -> APP. No Android usa um Intent explícito para o pacote
+        // da Shopify, sem qualquer fallback para o browser.
+        const intentShopify =
+          ambienteAndroid() && orderId
+            ? criarIntentShopifyAndroid(orderId)
+            : "";
+
+        if (intentShopify) {
+          try {
+            window.location.replace(intentShopify);
+          } catch (_erro) {
+            window.location.href = intentShopify;
+          }
+        } else if (orderId) {
           const deepLinkShopify =
             "shopify://admin/orders/" + encodeURIComponent(orderId);
 
           try {
+            window.location.replace(deepLinkShopify);
+          } catch (_erro) {
             window.location.href = deepLinkShopify;
-            return;
-          } catch (_erro) {}
+          }
         }
 
-        estadoEl.textContent =
-          "Não foi possível abrir automaticamente a app Shopify.";
+        // Se o Android bloquear a abertura automática, mostra um botão
+        // que executa o mesmo Intent através de um clique do utilizador.
+        setTimeout(function () {
+          if (document.hidden) return;
 
-        // Mantém uma opção manual que continua a apontar apenas para a app,
-        // sem redirecionar para o Admin no browser.
-        const botaoAbrirShopify = document.createElement("button");
-        botaoAbrirShopify.type = "button";
-        botaoAbrirShopify.className = "botao-enviar";
-        botaoAbrirShopify.textContent = "Abrir app Shopify";
-        botaoAbrirShopify.addEventListener("click", function () {
-          if (!orderId) return;
-          window.location.href =
-            "shopify://admin/orders/" + encodeURIComponent(orderId);
-        });
+          estadoEl.textContent =
+            "Carrega abaixo para voltar à app Shopify.";
 
-        const card = document.querySelector(".card");
-        if (card && !document.getElementById("abrirShopifyApp")) {
-          botaoAbrirShopify.id = "abrirShopifyApp";
-          card.appendChild(botaoAbrirShopify);
-        }
+          const botaoAbrirShopify = document.createElement("button");
+          botaoAbrirShopify.type = "button";
+          botaoAbrirShopify.className = "botao-enviar";
+          botaoAbrirShopify.textContent = "Abrir app Shopify";
+
+          botaoAbrirShopify.addEventListener("click", function () {
+            if (!orderId) return;
+
+            const destino =
+              ambienteAndroid()
+                ? criarIntentShopifyAndroid(orderId)
+                : "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+            window.location.href = destino;
+          });
+
+          const card = document.querySelector(".card");
+          if (card && !document.getElementById("abrirShopifyApp")) {
+            botaoAbrirShopify.id = "abrirShopifyApp";
+            card.appendChild(botaoAbrirShopify);
+          }
+        }, 900);
 
         return;
       }
