@@ -1096,38 +1096,47 @@
     function voltarAoShopify() {
       mostrarEcrãFinal();
 
-      // A página de envio é aberta numa janela/separador próprio.
-      // Ao terminar, tenta fechá-la primeiro para regressar diretamente
-      // ao Shopify que ficou por baixo, sem deixar a página de envio aberta.
+      // Na app Shopify, não fecha primeiro esta página.
+      // Se a fecharmos antes, o JavaScript termina e o deep link nunca chega
+      // a ser executado, deixando o utilizador no Chrome.
+      if (retornoApp || modoRetorno === "app") {
+        if (ambienteAndroid() && orderId) {
+          const intentShopify =
+            criarIntentShopifyAndroid(orderId, returnUrl);
+
+          if (intentShopify) {
+            window.location.href = intentShopify;
+            return;
+          }
+        }
+
+        if (orderId) {
+          const deepLinkShopify =
+            "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+          try {
+            window.location.href = deepLinkShopify;
+            return;
+          } catch (_erro) {}
+        }
+
+        if (returnUrl) {
+          window.location.replace(returnUrl);
+          return;
+        }
+
+        estadoEl.textContent =
+          "Não foi possível abrir automaticamente a Shopify.";
+        return;
+      }
+
+      // No browser/computador, fecha a janela de envio para revelar
+      // novamente o separador do Shopify que ficou por baixo.
       try {
         window.close();
       } catch (_erro) {}
 
-      // Se o browser não permitir fechar a janela, usa o regresso normal
-      // à app Shopify ou ao Admin no browser como fallback.
       setTimeout(function () {
-        if (retornoApp || modoRetorno === "app") {
-          if (ambienteAndroid() && orderId) {
-            const intentShopify =
-              criarIntentShopifyAndroid(orderId, returnUrl);
-
-            if (intentShopify) {
-              window.location.href = intentShopify;
-              return;
-            }
-          }
-
-          if (orderId) {
-            const deepLinkShopify =
-              "shopify://admin/orders/" + encodeURIComponent(orderId);
-
-            try {
-              window.location.href = deepLinkShopify;
-              return;
-            } catch (_erro) {}
-          }
-        }
-
         if (returnUrl) {
           window.location.replace(returnUrl);
           return;
