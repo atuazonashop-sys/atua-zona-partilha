@@ -381,6 +381,7 @@
             body: JSON.stringify({
               completion_token: completionToken,
             }),
+            keepalive: true,
           },
         );
 
@@ -565,10 +566,18 @@
         return;
       }
 
-      marcarFornecedorEl.disabled = !concluido;
-      marcarFornecedorEl.textContent = concluido
-        ? "Voltar ao Shopify para confirmar"
-        : "Envia primeiro os dados e todos os produtos";
+      const retornoPreparado =
+        prontoParaConfirmar || Boolean(completionToken);
+
+      marcarFornecedorEl.disabled =
+        !concluido || !retornoPreparado;
+
+      marcarFornecedorEl.textContent =
+        !concluido
+          ? "Envia primeiro os dados e todos os produtos"
+          : retornoPreparado
+            ? "Voltar ao Shopify para confirmar"
+            : "A preparar confirmação...";
 
       fecharEl.classList.toggle("oculto", concluido);
 
@@ -1208,38 +1217,14 @@
           return;
         }
 
-        marcarFornecedorEl.disabled = true;
-        marcarFornecedorEl.textContent =
-          "A preparar confirmação...";
-        estadoEl.textContent =
-          "A atualizar o estado da encomenda...";
-
-        // Se a preparação inicial não tiver devolvido token (por exemplo,
-        // por uma falha temporária de rede), tenta prepará-la novamente aqui.
-        if (!completionToken && !prontoParaConfirmar) {
-          await prepararPedidoAutomaticamente();
+        // A preparação do token já terminou antes de o botão ficar ativo.
+        // Inicia a atualização do estado com keepalive, mas NÃO espera pela
+        // resposta antes de regressar à Shopify. Assim o clique do utilizador
+        // continua válido para o Android abrir a app diretamente.
+        if (!prontoParaConfirmar) {
+          void marcarProntoParaConfirmar();
         }
 
-        const pronto =
-          prontoParaConfirmar ||
-          await marcarProntoParaConfirmar();
-
-        if (!pronto) {
-          marcarFornecedorEl.disabled = false;
-          marcarFornecedorEl.textContent =
-            "Tentar novamente";
-          estadoEl.textContent =
-            "Não foi possível atualizar o estado. Tenta novamente.";
-          return;
-        }
-
-        marcarFornecedorEl.textContent =
-          "Voltar ao Shopify para confirmar";
-        estadoEl.textContent =
-          "Estado atualizado para Confirmar envio.";
-
-        // Sem atraso: no Android, atrasar a navegação para a app pode
-        // fazer o Chrome perder a autorização para abrir um protocolo externo.
         voltarAoShopifyMantendoJanela();
       },
     );
