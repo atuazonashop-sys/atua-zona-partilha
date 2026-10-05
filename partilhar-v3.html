@@ -1127,23 +1127,6 @@
 
     if (!modoConsulta) {
       void prepararPedidoAutomaticamente();
-
-      // Ao regressar do WhatsApp, garante que uma preparação interrompida
-      // é retomada sem exigir que o utilizador recarregue a página.
-      window.addEventListener("pageshow", function () {
-        if (tudoEnviado()) {
-          void sincronizarEVoltarAoShopify();
-        }
-      });
-
-      document.addEventListener("visibilitychange", function () {
-        if (
-          document.visibilityState === "visible" &&
-          tudoEnviado()
-        ) {
-          void sincronizarEVoltarAoShopify();
-        }
-      });
     }
 
     function criarIntentShopifyAndroid(orderId, fallbackReturnUrl) {
@@ -1198,45 +1181,16 @@
 
     function voltarAoShopify() {
       estadoEl.textContent =
-        "Envio preparado. A voltar ao Shopify para confirmar...";
+        "A voltar ao Shopify para confirmar...";
 
-      // APP Shopify:
-      // a página é aberta no mesmo contexto (_self). Regressar no histórico
-      // devolve diretamente à Admin Action, sem intent://, sem shopify://
-      // e sem o aviso "Continuar para Shopify?" do Chrome.
-      if (retornoApp || modoRetorno === "app") {
-        try {
-          if (window.history.length > 1) {
-            window.history.back();
-            return;
-          }
-        } catch (_erro) {}
-
-        estadoEl.textContent =
-          "Envio preparado. Usa a tecla Retroceder para voltar ao Shopify e confirmar.";
-        return;
-      }
-
-      // Browser/computador:
-      // a página é aberta num separador próprio. Fecha esse separador
-      // para revelar novamente o Admin Shopify que ficou por baixo.
+      // Fluxo simples e igual ao que funcionava antes:
+      // a página de envio abre separada da Shopify. Ao terminar,
+      // fecha esta página e revela a Shopify que ficou por baixo.
       try {
         window.close();
       } catch (_erro) {}
 
       setTimeout(function () {
-        try {
-          if (window.history.length > 1) {
-            window.history.back();
-            return;
-          }
-        } catch (_erro) {}
-
-        if (returnUrl) {
-          window.location.href = returnUrl;
-          return;
-        }
-
         estadoEl.textContent =
           "Envio preparado. Fecha este separador para voltar ao Shopify e confirmar.";
       }, 350);
@@ -1269,13 +1223,14 @@
           }
         }
 
-        // Agora que o regresso à Shopify usa o histórico normal do browser,
-        // espera pela atualização do estado antes de sair desta página.
-        // Assim garantimos que a encomenda chega ao Shopify já em
-        // "Confirmar envio", em vez de ficar presa em "Envio em curso".
+        // Só este botão muda o metacampo para
+        // "Falta confirmar envio". Enviar os dados/produtos, por si só,
+        // mantém a encomenda em "Envio em curso".
         if (!prontoParaConfirmar) {
           marcarFornecedorEl.disabled = true;
-          marcarFornecedorEl.textContent = "A confirmar envio...";
+          marcarFornecedorEl.textContent = "A preparar confirmação...";
+          estadoEl.textContent =
+            "A marcar a encomenda como Falta confirmar envio...";
 
           const pronto = await marcarProntoParaConfirmar();
 
@@ -1285,6 +1240,9 @@
             return;
           }
         }
+
+        estadoEl.textContent =
+          "Falta confirmar envio. A voltar ao Shopify...";
 
         voltarAoShopifyMantendoJanela();
       },
