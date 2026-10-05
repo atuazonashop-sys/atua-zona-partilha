@@ -1155,32 +1155,18 @@
       // Se a fecharmos antes, o JavaScript termina e o deep link nunca chega
       // a ser executado, deixando o utilizador no Chrome.
       if (retornoApp || modoRetorno === "app") {
-        // APP -> APP. No Android usa um Intent explícito para o pacote
-        // da Shopify, sem qualquer fallback para o browser.
-        const intentShopify =
-          ambienteAndroid() && orderId
-            ? criarIntentShopifyAndroid(orderId, returnUrl)
-            : "";
-
-        if (intentShopify) {
-          try {
-            window.location.replace(intentShopify);
-          } catch (_erro) {
-            window.location.href = intentShopify;
+        // Na app Shopify, usa o mesmo mecanismo de navegação que o botão
+        // Retroceder do browser/Android. Como o fluxo veio da Shopify,
+        // history.back() regressa ao contexto anterior da app sem abrir
+        // admin.shopify.com no browser.
+        try {
+          if (window.history.length > 1) {
+            window.history.back();
           }
-        } else if (orderId) {
-          const deepLinkShopify =
-            "shopify://admin/orders/" + encodeURIComponent(orderId);
+        } catch (_erro) {}
 
-          try {
-            window.location.replace(deepLinkShopify);
-          } catch (_erro) {
-            window.location.href = deepLinkShopify;
-          }
-        }
-
-        // Se o Android bloquear a abertura automática, mostra um botão
-        // que executa o mesmo Intent através de um clique do utilizador.
+        // Se o browser não regressar automaticamente, apresenta um botão
+        // manual que faz exatamente a mesma ação: history.back().
         setTimeout(function () {
           if (document.hidden) return;
 
@@ -1190,17 +1176,12 @@
           const botaoAbrirShopify = document.createElement("button");
           botaoAbrirShopify.type = "button";
           botaoAbrirShopify.className = "botao-enviar";
-          botaoAbrirShopify.textContent = "Abrir app Shopify";
+          botaoAbrirShopify.textContent = "Voltar à app Shopify";
 
           botaoAbrirShopify.addEventListener("click", function () {
-            if (!orderId) return;
-
-            const destino =
-              ambienteAndroid()
-                ? criarIntentShopifyAndroid(orderId, returnUrl)
-                : "shopify://admin/orders/" + encodeURIComponent(orderId);
-
-            window.location.href = destino;
+            try {
+              window.history.back();
+            } catch (_erro) {}
           });
 
           const card = document.querySelector(".card");
@@ -1208,7 +1189,7 @@
             botaoAbrirShopify.id = "abrirShopifyApp";
             card.appendChild(botaoAbrirShopify);
           }
-        }, 900);
+        }, 700);
 
         return;
       }
