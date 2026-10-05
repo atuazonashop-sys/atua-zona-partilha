@@ -1230,10 +1230,21 @@
           }
         }
 
-        // Com token disponível, a mudança para "confirmar" pode seguir em
-        // background com keepalive enquanto regressamos ao Shopify.
+        // Agora que o regresso à Shopify usa o histórico normal do browser,
+        // espera pela atualização do estado antes de sair desta página.
+        // Assim garantimos que a encomenda chega ao Shopify já em
+        // "Confirmar envio", em vez de ficar presa em "Envio em curso".
         if (!prontoParaConfirmar) {
-          void marcarProntoParaConfirmar();
+          marcarFornecedorEl.disabled = true;
+          marcarFornecedorEl.textContent = "A confirmar envio...";
+
+          const pronto = await marcarProntoParaConfirmar();
+
+          if (!pronto) {
+            marcarFornecedorEl.disabled = false;
+            marcarFornecedorEl.textContent = "Tentar novamente";
+            return;
+          }
         }
 
         voltarAoShopifyMantendoJanela();
