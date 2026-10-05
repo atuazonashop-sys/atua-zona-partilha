@@ -1197,51 +1197,32 @@
     }
 
     function voltarAoShopify() {
-      estadoEl.textContent = "A voltar ao Shopify...";
+      estadoEl.textContent =
+        "Envio preparado. A voltar ao Shopify para confirmar...";
 
-      // Com a página aberta em _self na app Shopify, isto volta
-      // exatamente ao contexto anterior da própria app.
-      try {
-        if (window.history.length > 1) {
-          window.history.back();
-          return;
-        }
-      } catch (_erro) {}
-
-      // Fallback apenas se não existir histórico utilizável.
-      if (retornoApp || modoRetorno === "app") {
-        if (ambienteAndroid() && orderId) {
-          const intentShopify =
-            criarIntentShopifyAndroid(orderId, returnUrl);
-
-          if (intentShopify) {
-            window.location.href = intentShopify;
-            return;
-          }
-        }
-
-        if (orderId) {
-          const deepLinkShopify =
-            "shopify://admin/orders/" + encodeURIComponent(orderId);
-
-          try {
-            window.location.href = deepLinkShopify;
-            return;
-          } catch (_erro) {}
-        }
-      }
-
-      if (returnUrl) {
-        window.location.href = returnUrl;
-        return;
-      }
-
+      // Não usa intent:// nem shopify://.
+      // Esses deep links fazem o Chrome mostrar a mensagem
+      // "Continuar para Shopify?". O objetivo aqui é simplesmente fechar
+      // o separador externo que foi aberto pela app Shopify, tal como
+      // acontece quando o utilizador carrega na tecla física Retroceder.
       try {
         window.close();
       } catch (_erro) {}
 
-      estadoEl.textContent =
-        "Fecha este separador para voltar ao Shopify.";
+      // Alguns Android/Chrome não permitem fechar por JavaScript.
+      // Nesses casos tenta regressar pelo histórico, sem abrir outra app
+      // por deep link e sem provocar o aviso do Chrome.
+      setTimeout(function () {
+        try {
+          if (window.history.length > 1) {
+            window.history.back();
+            return;
+          }
+        } catch (_erro) {}
+
+        estadoEl.textContent =
+          "Envio preparado. Usa a tecla Retroceder para voltar ao Shopify e confirmar.";
+      }, 350);
     }
 
     marcarFornecedorEl.addEventListener(
