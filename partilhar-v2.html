@@ -1121,94 +1121,56 @@
     }
 
     function voltarAoShopifyMantendoJanela() {
+      // Mantém o regresso estável ao contexto de onde o envio foi aberto.
       voltarAoShopify();
     }
 
-    function mostrarEcrãFinal() {
-      tituloPaginaEl.textContent = "Envio concluído";
-
-      try {
-        clienteBlocoEl.classList.add("oculto");
-      } catch (_erro) {}
-
-      try {
-        produtosEl.innerHTML = "";
-        produtosEl.classList.add("oculto");
-      } catch (_erro) {}
-
-      try {
-        marcarFornecedorEl.classList.add("oculto");
-      } catch (_erro) {}
-
-      try {
-        fecharEl.classList.add("oculto");
-      } catch (_erro) {}
-
-      estadoEl.textContent =
-        "A voltar ao Shopify… Se este separador continuar aberto, podes fechá-lo.";
-    }
-
     function voltarAoShopify() {
-      mostrarEcrãFinal();
+      estadoEl.textContent = "A voltar ao Shopify...";
 
-      // Na app Shopify, não fecha primeiro esta página.
-      // Se a fecharmos antes, o JavaScript termina e o deep link nunca chega
-      // a ser executado, deixando o utilizador no Chrome.
+      // Com a página aberta em _self na app Shopify, isto volta
+      // exatamente ao contexto anterior da própria app.
+      try {
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+      } catch (_erro) {}
+
+      // Fallback apenas se não existir histórico utilizável.
       if (retornoApp || modoRetorno === "app") {
-        // Na app Shopify, usa o mesmo mecanismo de navegação que o botão
-        // Retroceder do browser/Android. Como o fluxo veio da Shopify,
-        // history.back() regressa ao contexto anterior da app sem abrir
-        // admin.shopify.com no browser.
-        try {
-          if (window.history.length > 1) {
-            window.history.back();
+        if (ambienteAndroid() && orderId) {
+          const intentShopify =
+            criarIntentShopifyAndroid(orderId, returnUrl);
+
+          if (intentShopify) {
+            window.location.href = intentShopify;
+            return;
           }
-        } catch (_erro) {}
+        }
 
-        // Se o browser não regressar automaticamente, apresenta um botão
-        // manual que faz exatamente a mesma ação: history.back().
-        setTimeout(function () {
-          if (document.hidden) return;
+        if (orderId) {
+          const deepLinkShopify =
+            "shopify://admin/orders/" + encodeURIComponent(orderId);
 
-          estadoEl.textContent =
-            "Carrega abaixo para voltar à app Shopify.";
+          try {
+            window.location.href = deepLinkShopify;
+            return;
+          } catch (_erro) {}
+        }
+      }
 
-          const botaoAbrirShopify = document.createElement("button");
-          botaoAbrirShopify.type = "button";
-          botaoAbrirShopify.className = "botao-enviar";
-          botaoAbrirShopify.textContent = "Voltar à app Shopify";
-
-          botaoAbrirShopify.addEventListener("click", function () {
-            try {
-              window.history.back();
-            } catch (_erro) {}
-          });
-
-          const card = document.querySelector(".card");
-          if (card && !document.getElementById("abrirShopifyApp")) {
-            botaoAbrirShopify.id = "abrirShopifyApp";
-            card.appendChild(botaoAbrirShopify);
-          }
-        }, 700);
-
+      if (returnUrl) {
+        window.location.href = returnUrl;
         return;
       }
 
-      // No browser/computador, fecha a janela de envio para revelar
-      // novamente o separador do Shopify que ficou por baixo.
       try {
         window.close();
       } catch (_erro) {}
 
-      setTimeout(function () {
-        if (returnUrl) {
-          window.location.replace(returnUrl);
-          return;
-        }
-
-        estadoEl.textContent =
-          "Podes fechar este separador para voltar ao Shopify.";
-      }, 300);
+      estadoEl.textContent =
+        "Fecha este separador para voltar ao Shopify.";
     }
 
     marcarFornecedorEl.addEventListener(
