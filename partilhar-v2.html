@@ -1120,16 +1120,8 @@
       // Se a fecharmos antes, o JavaScript termina e o deep link nunca chega
       // a ser executado, deixando o utilizador no Chrome.
       if (retornoApp || modoRetorno === "app") {
-        if (ambienteAndroid() && orderId) {
-          const intentShopify =
-            criarIntentShopifyAndroid(orderId, returnUrl);
-
-          if (intentShopify) {
-            window.location.href = intentShopify;
-            return;
-          }
-        }
-
+        // Se o fluxo começou na app Shopify, nunca usa admin.shopify.com
+        // como fallback, porque isso manda o utilizador para o browser.
         if (orderId) {
           const deepLinkShopify =
             "shopify://admin/orders/" + encodeURIComponent(orderId);
@@ -1140,13 +1132,27 @@
           } catch (_erro) {}
         }
 
-        if (returnUrl) {
-          window.location.replace(returnUrl);
-          return;
+        estadoEl.textContent =
+          "Não foi possível abrir automaticamente a app Shopify.";
+
+        // Mantém uma opção manual que continua a apontar apenas para a app,
+        // sem redirecionar para o Admin no browser.
+        const botaoAbrirShopify = document.createElement("button");
+        botaoAbrirShopify.type = "button";
+        botaoAbrirShopify.className = "botao-enviar";
+        botaoAbrirShopify.textContent = "Abrir app Shopify";
+        botaoAbrirShopify.addEventListener("click", function () {
+          if (!orderId) return;
+          window.location.href =
+            "shopify://admin/orders/" + encodeURIComponent(orderId);
+        });
+
+        const card = document.querySelector(".card");
+        if (card && !document.getElementById("abrirShopifyApp")) {
+          botaoAbrirShopify.id = "abrirShopifyApp";
+          card.appendChild(botaoAbrirShopify);
         }
 
-        estadoEl.textContent =
-          "Não foi possível abrir automaticamente a Shopify.";
         return;
       }
 
