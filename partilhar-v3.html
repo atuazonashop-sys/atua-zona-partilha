@@ -317,6 +317,7 @@
               order_id: orderId,
               cliente: dadosCliente,
             }),
+            keepalive: true,
           },
         );
 
@@ -543,6 +544,17 @@
       );
 
       atualizarBotaoFinal();
+
+      // O utilizador sai temporariamente para o WhatsApp. Se a preparação
+      // inicial tiver sido interrompida pelo Android/Chrome, tenta novamente
+      // assim que todos os dados/produtos estiverem marcados como enviados.
+      if (
+        !modoConsulta &&
+        tudoEnviado() &&
+        !completionToken
+      ) {
+        void prepararPedidoAutomaticamente();
+      }
     }
 
     function tudoEnviado() {
@@ -570,15 +582,14 @@
       const retornoPreparado =
         prontoParaConfirmar || Boolean(completionToken);
 
-      marcarFornecedorEl.disabled =
-        !concluido || !retornoPreparado;
+      marcarFornecedorEl.disabled = !concluido;
 
       marcarFornecedorEl.textContent =
         !concluido
           ? "Envia primeiro os dados e todos os produtos"
           : retornoPreparado
             ? "Voltar ao Shopify para confirmar"
-            : "A preparar confirmação...";
+            : "Tentar preparar confirmação";
 
       fecharEl.classList.toggle("oculto", concluido);
 
@@ -1074,6 +1085,24 @@
 
     if (!modoConsulta) {
       void prepararPedidoAutomaticamente();
+
+      // Ao regressar do WhatsApp, garante que uma preparação interrompida
+      // é retomada sem exigir que o utilizador recarregue a página.
+      window.addEventListener("pageshow", function () {
+        if (tudoEnviado() && !completionToken) {
+          void prepararPedidoAutomaticamente();
+        }
+      });
+
+      document.addEventListener("visibilitychange", function () {
+        if (
+          document.visibilityState === "visible" &&
+          tudoEnviado() &&
+          !completionToken
+        ) {
+          void prepararPedidoAutomaticamente();
+        }
+      });
     }
 
     function criarIntentShopifyAndroid(orderId, fallbackReturnUrl) {
@@ -1186,10 +1215,23 @@
           return;
         }
 
-        // A preparação do token já terminou antes de o botão ficar ativo.
-        // Inicia a atualização do estado com keepalive, mas NÃO espera pela
-        // resposta antes de regressar à Shopify. Assim o clique do utilizador
-        // continua válido para o Android abrir a app diretamente.
+        // Se o Android interrompeu a preparação inicial quando abriu
+        // o WhatsApp, recupera aqui antes de sair da página.
+        if (!completionToken && !prontoParaConfirmar) {
+          marcarFornecedorEl.disabled = true;
+          marcarFornecedorEl.textContent = "A preparar confirmação...";
+
+          await prepararPedidoAutomaticamente();
+
+          if (!completionToken && !prontoParaConfirmar) {
+            marcarFornecedorEl.disabled = false;
+            marcarFornecedorEl.textContent = "Tentar novamente";
+            return;
+          }
+        }
+
+        // Com token disponível, a mudança para "confirmar" pode seguir em
+        // background com keepalive enquanto regressamos ao Shopify.
         if (!prontoParaConfirmar) {
           void marcarProntoParaConfirmar();
         }
