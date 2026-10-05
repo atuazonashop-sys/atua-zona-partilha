@@ -269,6 +269,8 @@
         params.get("backend_url") ||
         "https://atua-zona-pedidos-backend-production.up.railway.app"
       ).replace(/\/+$/, "");
+    let prontoParaConfirmar = false;
+    let aMarcarPronto = false;
     const variosProdutos = produtos.length > 1;
 
     async function prepararPedidoAutomaticamente() {
@@ -318,6 +320,10 @@
             String(result.backend_url).replace(/\/+$/, "");
         }
 
+        prontoParaConfirmar =
+          result.fase === "confirmar" ||
+          result.fase === "concluido";
+
         atualizarBotaoFinal();
       } catch (erro) {
         console.error(
@@ -327,6 +333,70 @@
 
         estadoEl.textContent =
           "O envio pode continuar, mas a confirmação automática não ficou disponível. Podes voltar ao Shopify no fim.";
+      }
+    }
+
+    async function marcarProntoParaConfirmar() {
+      if (
+        modoConsulta ||
+        prontoParaConfirmar ||
+        aMarcarPronto ||
+        !completionToken ||
+        !backendUrl ||
+        !tudoEnviado()
+      ) {
+        return prontoParaConfirmar;
+      }
+
+      aMarcarPronto = true;
+
+      try {
+        const response = await fetch(
+          backendUrl + "/api/ready-order",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              completion_token: completionToken,
+            }),
+          },
+        );
+
+        const result = await response
+          .json()
+          .catch(function () {
+            return {};
+          });
+
+        if (!response.ok || !result.ok) {
+          throw new Error(
+            result.error ||
+              "Não foi possível preparar a confirmação.",
+          );
+        }
+
+        prontoParaConfirmar = true;
+
+        estadoEl.textContent =
+          "Envio preparado. Volta ao Shopify para confirmar.";
+
+        return true;
+      } catch (erro) {
+        console.error(
+          "Não foi possível marcar o envio como pronto para confirmação:",
+          erro,
+        );
+
+        estadoEl.textContent =
+          erro && erro.message
+            ? erro.message
+            : "Não foi possível preparar a confirmação.";
+
+        return false;
+      } finally {
+        aMarcarPronto = false;
       }
     }
 
@@ -477,14 +547,14 @@
 
       marcarFornecedorEl.disabled = !concluido;
       marcarFornecedorEl.textContent = concluido
-        ? (
-            completionToken && backendUrl
-              ? "Concluir pedido ao fornecedor"
-              : "Voltar ao Shopify para marcar"
-          )
+        ? "Voltar ao Shopify para confirmar"
         : "Envia primeiro os dados e todos os produtos";
 
       fecharEl.classList.toggle("oculto", concluido);
+
+      if (concluido) {
+        void marcarProntoParaConfirmar();
+      }
     }
 
     function marcarBotaoEnviado(botao, texto) {
@@ -671,6 +741,15 @@
 
     function restaurarEstado() {
       const estado = lerEstado();
+
+      if (estado.concluido) {
+        try {
+          sessionStorage.removeItem(chaveEstado());
+        } catch (_erro) {}
+
+        atualizarBotaoFinal();
+        return;
+      }
 
       if (estado.cliente) {
         marcarBotaoEnviado(
@@ -993,7 +1072,7 @@
       // A Shopify não disponibiliza um deep link público para reabrir
       // diretamente uma Admin Action já no passo em que estava.
       // Mantém o regresso estável à encomenda; a Action recupera o passo
-      // através da tag temporária quando for aberta novamente.
+      // mantendo a Action móvel estável e a confirmação separada.
       voltarAoShopify();
     }
 
@@ -1057,68 +1136,31 @@
           return;
         }
 
-        if (completionToken && backendUrl) {
-          marcarFornecedorEl.disabled = true;
+        marcarFornecedorEl.disabled = true;
+        marcarFornecedorEl.textContent =
+          "A preparar confirmação...";
+        estadoEl.textContent =
+          "A atualizar o estado da encomenda...";
+
+        const pronto =
+          prontoParaConfirmar ||
+          await marcarProntoParaConfirmar();
+
+        if (!pronto) {
+          marcarFornecedorEl.disabled = false;
           marcarFornecedorEl.textContent =
-            "A marcar pedido ao fornecedor...";
-          estadoEl.textContent =
-            "A concluir a encomenda na Shopify...";
-
-          try {
-            const response = await fetch(
-              backendUrl + "/api/complete-order",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  completion_token: completionToken,
-                }),
-              },
-            );
-
-            const result = await response
-              .json()
-              .catch(function () {
-                return {};
-              });
-
-            if (!response.ok || !result.ok) {
-              throw new Error(
-                result.error ||
-                  "Não foi possível marcar a encomenda.",
-              );
-            }
-
-            guardarEstado({concluido: true});
-
-            marcarFornecedorEl.textContent =
-              "Pedido ao fornecedor concluído ✓";
-            estadoEl.textContent =
-              "A encomenda ficou marcada como Pedido ao fornecedor.";
-
-            setTimeout(function () {
-              voltarAoShopifyMantendoJanela();
-            }, 650);
-
-            return;
-          } catch (erro) {
-            console.error(erro);
-
-            marcarFornecedorEl.disabled = false;
-            marcarFornecedorEl.textContent =
-              "Tentar concluir novamente";
-            estadoEl.textContent =
-              erro && erro.message
-                ? erro.message
-                : "Não foi possível concluir o pedido.";
-            return;
-          }
+            "Tentar novamente";
+          return;
         }
 
-        guardarEstado({concluido: true});
-        voltarAoShopifyMantendoJanela();
+        marcarFornecedorEl.textContent =
+          "Voltar ao Shopify para confirmar";
+        estadoEl.textContent =
+          "Estado atualizado para Confirmar envio.";
+
+        setTimeout(function () {
+          voltarAoShopifyMantendoJanela();
+        }, 350);
       },
     );
 
