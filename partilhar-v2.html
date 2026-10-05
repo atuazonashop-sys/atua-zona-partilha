@@ -262,6 +262,10 @@
     const retornoApp = retorno === "app";
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
+    const completionToken =
+      params.get("completion_token") || "";
+    const backendUrl =
+      (params.get("backend_url") || "").replace(/\/+$/, "");
     const variosProdutos = produtos.length > 1;
 
     tituloPaginaEl.textContent = "Enviar pedido ao fornecedor";
@@ -411,7 +415,11 @@
 
       marcarFornecedorEl.disabled = !concluido;
       marcarFornecedorEl.textContent = concluido
-        ? "Voltar ao Shopify para marcar"
+        ? (
+            completionToken && backendUrl
+              ? "Concluir pedido ao fornecedor"
+              : "Voltar ao Shopify para marcar"
+          )
         : "Envia primeiro os dados e todos os produtos";
 
       fecharEl.classList.toggle("oculto", concluido);
@@ -971,19 +979,82 @@
         "Fecha este separador para voltar ao Shopify.";
     }
 
-    marcarFornecedorEl.addEventListener("click", function () {
-      if (modoConsulta) {
-        voltarAoShopify();
-        return;
-      }
+    marcarFornecedorEl.addEventListener(
+      "click",
+      async function () {
+        if (modoConsulta) {
+          voltarAoShopify();
+          return;
+        }
 
-      if (!tudoEnviado()) {
-        return;
-      }
+        if (!tudoEnviado()) {
+          return;
+        }
 
-      guardarEstado({concluido: true});
-      voltarAoShopifyMantendoJanela();
-    });
+        if (completionToken && backendUrl) {
+          marcarFornecedorEl.disabled = true;
+          marcarFornecedorEl.textContent =
+            "A marcar pedido ao fornecedor...";
+          estadoEl.textContent =
+            "A concluir a encomenda na Shopify...";
+
+          try {
+            const response = await fetch(
+              backendUrl + "/api/complete-order",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  completion_token: completionToken,
+                }),
+              },
+            );
+
+            const result = await response
+              .json()
+              .catch(function () {
+                return {};
+              });
+
+            if (!response.ok || !result.ok) {
+              throw new Error(
+                result.error ||
+                  "Não foi possível marcar a encomenda.",
+              );
+            }
+
+            guardarEstado({concluido: true});
+
+            marcarFornecedorEl.textContent =
+              "Pedido ao fornecedor concluído ✓";
+            estadoEl.textContent =
+              "A encomenda ficou marcada como Pedido ao fornecedor.";
+
+            setTimeout(function () {
+              voltarAoShopifyMantendoJanela();
+            }, 650);
+
+            return;
+          } catch (erro) {
+            console.error(erro);
+
+            marcarFornecedorEl.disabled = false;
+            marcarFornecedorEl.textContent =
+              "Tentar concluir novamente";
+            estadoEl.textContent =
+              erro && erro.message
+                ? erro.message
+                : "Não foi possível concluir o pedido.";
+            return;
+          }
+        }
+
+        guardarEstado({concluido: true});
+        voltarAoShopifyMantendoJanela();
+      },
+    );
 
     fecharEl.addEventListener("click", function () {
       voltarAoShopify();
