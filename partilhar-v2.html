@@ -258,8 +258,28 @@
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
     const retorno = params.get("retorno") || "browser";
-    const retornoBrowser = retorno === "browser";
-    const retornoApp = retorno === "app";
+    const referrerOrigem = String(document.referrer || "");
+    const veioDeShopifyWeb =
+      /^https:\/\/(?:admin\.shopify\.com|extensions\.shopifycdn\.com)(?:\/|$)/i
+        .test(referrerOrigem);
+    const veioDaShopifyAndroid =
+      /^android-app:\/\/com\.shopify\.mobile(?:\/|$)/i
+        .test(referrerOrigem);
+
+    // Em Admin UI Extensions o ambiente móvel nem sempre chega corretamente
+    // ao link externo. No Android, uma página lançada pela app Shopify pode
+    // chegar ao Chrome sem o parâmetro retorno=app. Usa o referrer nativo
+    // (ou a ausência de referrer fora do Shopify Web) como fallback.
+    const retornoApp =
+      retorno === "app" ||
+      veioDaShopifyAndroid ||
+      (
+        ambienteAndroid() &&
+        retorno === "browser" &&
+        !veioDeShopifyWeb &&
+        !referrerOrigem
+      );
+    const retornoBrowser = !retornoApp;
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
     let completionToken =
@@ -1189,9 +1209,9 @@
         estadoEl.textContent =
           "Estado atualizado para Confirmar envio.";
 
-        setTimeout(function () {
-          voltarAoShopifyMantendoJanela();
-        }, 350);
+        // Sem atraso: no Android, atrasar a navegação para a app pode
+        // fazer o Chrome perder a autorização para abrir um protocolo externo.
+        voltarAoShopifyMantendoJanela();
       },
     );
 
