@@ -1183,14 +1183,36 @@
       estadoEl.textContent =
         "A voltar ao Shopify para confirmar...";
 
-      // Fluxo simples e igual ao que funcionava antes:
-      // a página de envio abre separada da Shopify. Ao terminar,
-      // fecha esta página e revela a Shopify que ficou por baixo.
+      // Shopify Mobile: a página é aberta em _self a partir do bloco.
+      // Voltar no histórico devolve ao contexto da app, sem intent://
+      // e sem o aviso "Continuar para Shopify?".
+      if (retornoApp || modoRetorno === "app") {
+        try {
+          if (window.history.length > 1) {
+            window.history.back();
+            return;
+          }
+        } catch (_erro) {}
+
+        estadoEl.textContent =
+          "Envio preparado. Usa a tecla Retroceder para voltar ao Shopify e confirmar.";
+        return;
+      }
+
+      // Browser/computador: a página foi aberta separada.
+      // Fecha-a para revelar novamente o Shopify.
       try {
         window.close();
       } catch (_erro) {}
 
       setTimeout(function () {
+        if (returnUrl) {
+          try {
+            window.location.href = returnUrl;
+            return;
+          } catch (_erro) {}
+        }
+
         estadoEl.textContent =
           "Envio preparado. Fecha este separador para voltar ao Shopify e confirmar.";
       }, 350);
