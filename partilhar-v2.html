@@ -552,9 +552,6 @@
 
       fecharEl.classList.toggle("oculto", concluido);
 
-      if (concluido) {
-        void marcarProntoParaConfirmar();
-      }
     }
 
     function marcarBotaoEnviado(botao, texto) {
@@ -1159,6 +1156,12 @@
         estadoEl.textContent =
           "A atualizar o estado da encomenda...";
 
+        // Se a preparação inicial não tiver devolvido token (por exemplo,
+        // por uma falha temporária de rede), tenta prepará-la novamente aqui.
+        if (!completionToken && !prontoParaConfirmar) {
+          await prepararPedidoAutomaticamente();
+        }
+
         const pronto =
           prontoParaConfirmar ||
           await marcarProntoParaConfirmar();
@@ -1167,6 +1170,8 @@
           marcarFornecedorEl.disabled = false;
           marcarFornecedorEl.textContent =
             "Tentar novamente";
+          estadoEl.textContent =
+            "Não foi possível atualizar o estado. Tenta novamente.";
           return;
         }
 
