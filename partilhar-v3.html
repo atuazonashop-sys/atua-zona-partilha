@@ -536,6 +536,22 @@
       }
     }
 
+    async function sincronizarConfirmacaoAutomaticamente() {
+      if (modoConsulta || !tudoEnviado()) {
+        return false;
+      }
+
+      if (!completionToken && !prontoParaConfirmar) {
+        await prepararPedidoAutomaticamente();
+      }
+
+      if (!prontoParaConfirmar && completionToken) {
+        return await marcarProntoParaConfirmar();
+      }
+
+      return prontoParaConfirmar;
+    }
+
     function guardarEstado(parcial) {
       const atual = lerEstado();
       sessionStorage.setItem(
@@ -545,15 +561,11 @@
 
       atualizarBotaoFinal();
 
-      // O utilizador sai temporariamente para o WhatsApp. Se a preparação
-      // inicial tiver sido interrompida pelo Android/Chrome, tenta novamente
-      // assim que todos os dados/produtos estiverem marcados como enviados.
-      if (
-        !modoConsulta &&
-        tudoEnviado() &&
-        !completionToken
-      ) {
-        void prepararPedidoAutomaticamente();
+      // Assim que todos os dados e produtos ficam marcados como enviados,
+      // muda automaticamente o estado da encomenda para "Confirmar envio".
+      // Não depende de o utilizador carregar no botão final.
+      if (!modoConsulta && tudoEnviado()) {
+        void sincronizarConfirmacaoAutomaticamente();
       }
     }
 
@@ -1089,18 +1101,17 @@
       // Ao regressar do WhatsApp, garante que uma preparação interrompida
       // é retomada sem exigir que o utilizador recarregue a página.
       window.addEventListener("pageshow", function () {
-        if (tudoEnviado() && !completionToken) {
-          void prepararPedidoAutomaticamente();
+        if (tudoEnviado()) {
+          void sincronizarConfirmacaoAutomaticamente();
         }
       });
 
       document.addEventListener("visibilitychange", function () {
         if (
           document.visibilityState === "visible" &&
-          tudoEnviado() &&
-          !completionToken
+          tudoEnviado()
         ) {
-          void prepararPedidoAutomaticamente();
+          void sincronizarConfirmacaoAutomaticamente();
         }
       });
     }
