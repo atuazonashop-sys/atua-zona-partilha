@@ -1069,59 +1069,52 @@
     }
 
     function voltarAoShopifyMantendoJanela() {
-      // A Shopify não disponibiliza um deep link público para reabrir
-      // diretamente uma Admin Action já no passo em que estava.
-      // Mantém o regresso estável à encomenda; a Action recupera o passo
-      // mantendo a Action móvel estável e a confirmação separada.
       voltarAoShopify();
     }
 
     function voltarAoShopify() {
       estadoEl.textContent = "A voltar ao Shopify...";
 
-      // Quando a página foi aberta no mesmo contexto,
-      // regressa exatamente ao local de onde veio:
-      // app Shopify se veio da app, browser se veio do browser.
-      try {
-        if (window.history.length > 1) {
-          window.history.back();
-          return;
-        }
-      } catch (_erro) {}
-
-      if (retornoApp || modoRetorno === "app") {
-        if (ambienteAndroid() && orderId) {
-          const intentShopify =
-            criarIntentShopifyAndroid(orderId, returnUrl);
-
-          if (intentShopify) {
-            window.location.href = intentShopify;
-            return;
-          }
-        }
-
-        if (orderId) {
-          const deepLinkShopify =
-            "shopify://admin/orders/" + encodeURIComponent(orderId);
-
-          try {
-            window.location.href = deepLinkShopify;
-            return;
-          } catch (_erro) {}
-        }
-      }
-
-      if (returnUrl) {
-        window.location.href = returnUrl;
-        return;
-      }
-
+      // A página de envio é aberta numa janela/separador próprio.
+      // Ao terminar, tenta fechá-la primeiro para regressar diretamente
+      // ao Shopify que ficou por baixo, sem deixar a página de envio aberta.
       try {
         window.close();
       } catch (_erro) {}
 
-      estadoEl.textContent =
-        "Fecha este separador para voltar ao Shopify.";
+      // Se o browser não permitir fechar a janela, usa o regresso normal
+      // à app Shopify ou ao Admin no browser como fallback.
+      setTimeout(function () {
+        if (retornoApp || modoRetorno === "app") {
+          if (ambienteAndroid() && orderId) {
+            const intentShopify =
+              criarIntentShopifyAndroid(orderId, returnUrl);
+
+            if (intentShopify) {
+              window.location.href = intentShopify;
+              return;
+            }
+          }
+
+          if (orderId) {
+            const deepLinkShopify =
+              "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+            try {
+              window.location.href = deepLinkShopify;
+              return;
+            } catch (_erro) {}
+          }
+        }
+
+        if (returnUrl) {
+          window.location.replace(returnUrl);
+          return;
+        }
+
+        estadoEl.textContent =
+          "Podes fechar este separador para voltar ao Shopify.";
+      }, 300);
     }
 
     marcarFornecedorEl.addEventListener(
