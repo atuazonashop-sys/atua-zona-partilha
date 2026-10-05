@@ -262,11 +262,73 @@
     const retornoApp = retorno === "app";
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
-    const completionToken =
+    let completionToken =
       params.get("completion_token") || "";
-    const backendUrl =
-      (params.get("backend_url") || "").replace(/\/+$/, "");
+    let backendUrl =
+      (
+        params.get("backend_url") ||
+        "https://atua-zona-pedidos-backend-production.up.railway.app"
+      ).replace(/\/+$/, "");
     const variosProdutos = produtos.length > 1;
+
+    async function prepararPedidoAutomaticamente() {
+      if (
+        modoConsulta ||
+        !orderId ||
+        !dadosCliente ||
+        !backendUrl ||
+        completionToken
+      ) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          backendUrl + "/api/prepare-order",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              order_id: orderId,
+              cliente: dadosCliente,
+            }),
+          },
+        );
+
+        const result = await response
+          .json()
+          .catch(function () {
+            return {};
+          });
+
+        if (!response.ok || !result.ok) {
+          throw new Error(
+            result.error ||
+              "Não foi possível preparar a encomenda.",
+          );
+        }
+
+        completionToken =
+          String(result.completion_token || "");
+
+        if (result.backend_url) {
+          backendUrl =
+            String(result.backend_url).replace(/\/+$/, "");
+        }
+
+        atualizarBotaoFinal();
+      } catch (erro) {
+        console.error(
+          "Não foi possível preparar automaticamente o pedido:",
+          erro,
+        );
+
+        estadoEl.textContent =
+          "O envio pode continuar, mas a confirmação automática não ficou disponível. Podes voltar ao Shopify no fim.";
+      }
+    }
 
     tituloPaginaEl.textContent = "Enviar pedido ao fornecedor";
 
@@ -903,6 +965,10 @@
     enviarClienteEl.addEventListener("click", partilharCliente);
 
     restaurarEstado();
+
+    if (!modoConsulta) {
+      void prepararPedidoAutomaticamente();
+    }
 
     function criarIntentShopifyAndroid(orderId, fallbackUrl) {
       const id = encodeURIComponent(String(orderId || "").trim());
