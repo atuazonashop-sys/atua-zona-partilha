@@ -1,0 +1,1206 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Enviar pedido ao fornecedor</title>
+  <!-- ATUA ZONA PARTILHA V3 2026-10-05 -->
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1f1f1f;
+      background: #f6f6f6;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-padding-bottom: calc(110px + env(safe-area-inset-bottom));
+    }
+
+    body {
+      margin: 0;
+      padding: 12px 10px calc(120px + env(safe-area-inset-bottom));
+    }
+
+    main {
+      width: min(100%, 560px);
+      margin: 0 auto;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e2e2;
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.06);
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
+    .bloco {
+      scroll-margin-top: 14px;
+      scroll-margin-bottom: calc(120px + env(safe-area-inset-bottom));
+    }
+
+    .bloco + .bloco {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid #e8e8e8;
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #fafafa;
+      padding: 6px;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 13px 14px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: inherit;
+      font-size: 17px;
+      line-height: 1.35;
+      background: #f7f7f7;
+      border-radius: 12px;
+    }
+
+    button {
+      display: block;
+      width: 100%;
+      border-radius: 999px;
+      padding: 14px 16px;
+      font: inherit;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .botao-enviar {
+      margin-top: 16px;
+      border: 0;
+      background: #111;
+      color: #fff;
+    }
+
+    .botao-enviado {
+      background: #e9e9e9;
+      color: #1f1f1f;
+      border: 1px solid #d8d8d8;
+    }
+
+    #marcarFornecedor {
+      margin-top: 28px;
+      border: 0;
+      background: #111;
+      color: #fff;
+    }
+
+    #marcarFornecedor:disabled {
+      background: #d8d8d8;
+      color: #777;
+      cursor: not-allowed;
+    }
+
+    #fechar {
+      margin-top: 12px;
+      background: #fff;
+      color: #111;
+      border: 1px solid #d8d8d8;
+    }
+
+    #estado {
+      margin: 14px 0 0;
+      line-height: 1.45;
+    }
+
+    .oculto {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="card">
+      <h1 id="tituloPagina">Enviar pedido ao fornecedor</h1>
+
+      <section id="clienteBloco" class="bloco oculto">
+        <h2>Dados do cliente</h2>
+        <pre id="clienteTexto"></pre>
+        <button id="enviarCliente" class="botao-enviar" type="button">
+          Enviar dados do cliente
+        </button>
+      </section>
+
+      <div id="produtos"></div>
+
+      <button id="marcarFornecedor" type="button" disabled>
+        Envia primeiro os dados e todos os produtos
+      </button>
+
+      <button id="fechar" type="button">Fechar sem concluir</button>
+      <p id="estado"></p>
+    </div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+
+    const produtosEl = document.getElementById("produtos");
+    const tituloPaginaEl = document.getElementById("tituloPagina");
+    const fecharEl = document.getElementById("fechar");
+    const estadoEl = document.getElementById("estado");
+    const clienteBlocoEl = document.getElementById("clienteBloco");
+    const clienteTextoEl = document.getElementById("clienteTexto");
+    const enviarClienteEl = document.getElementById("enviarCliente");
+    const marcarFornecedorEl = document.getElementById("marcarFornecedor");
+
+    let janelaWhatsAppControlada = null;
+
+    function normalizarTextoSimples(valor) {
+      return String(valor || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+    }
+
+    function sanitizarTextoProduto(textoOriginal, tituloProduto) {
+      const titulo = normalizarTextoSimples(tituloProduto);
+      const ocultarModelo =
+        titulo.includes("casaco") ||
+        titulo.includes("kit infantil") ||
+        titulo.includes("kits infantis") ||
+        titulo.includes("fato de treino") ||
+        titulo.includes("fatos de treino");
+
+      return String(textoOriginal || "")
+        .split(/\r?\n/)
+        .map(function (linha) {
+          return linha.trim();
+        })
+        .filter(function (linha) {
+          if (!linha) return false;
+
+          const numero = linha.match(/^n[uú]mero\s*:\s*(.*)$/i);
+          if (numero) {
+            return /^\d{1,3}$/.test(String(numero[1] || "").trim());
+          }
+
+          if (/^nome\s*:\s*$/i.test(linha)) return false;
+          if (/^patch\s*:\s*$/i.test(linha)) return false;
+
+          if (ocultarModelo && /^modelo\s*:/i.test(linha)) {
+            return false;
+          }
+
+          return true;
+        })
+        .join("\n")
+        .trim();
+    }
+
+    function obterProdutos() {
+      const produtosJson = params.get("produtos");
+
+      if (produtosJson) {
+        try {
+          const lista = JSON.parse(produtosJson);
+
+          if (Array.isArray(lista) && lista.length > 0) {
+            return lista.map(function (produto, index) {
+              return {
+                titulo: String(produto.titulo || "Produto " + (index + 1))
+                  .replace(/^Produto\s+\d+\s*:\s*/i, ""),
+                imagem: String(produto.imagem || ""),
+                texto: sanitizarTextoProduto(
+                  String(produto.texto || ""),
+                  String(produto.titulo || ""),
+                ),
+              };
+            });
+          }
+        } catch (erro) {
+          console.error("Não foi possível ler os produtos:", erro);
+        }
+      }
+
+      return [{
+        titulo: params.get("titulo") || "Produto",
+        imagem: params.get("imagem") || "",
+        texto: sanitizarTextoProduto(
+          params.get("texto") || "",
+          params.get("titulo") || "",
+        ),
+      }];
+    }
+
+    const produtos = obterProdutos();
+    const dadosCliente = params.get("cliente") || "";
+    const orderId = params.get("order_id") || "";
+    const returnUrl = params.get("return_url") || "";
+    const retorno = params.get("retorno") || "browser";
+    const referrerOrigem = String(document.referrer || "");
+    const veioDeShopifyWeb =
+      /^https:\/\/(?:admin\.shopify\.com|extensions\.shopifycdn\.com)(?:\/|$)/i
+        .test(referrerOrigem);
+    const veioDaShopifyAndroid =
+      /^android-app:\/\/com\.shopify\.mobile(?:\/|$)/i
+        .test(referrerOrigem);
+
+    // Em Admin UI Extensions o ambiente móvel nem sempre chega corretamente
+    // ao link externo. No Android, uma página lançada pela app Shopify pode
+    // chegar ao Chrome sem o parâmetro retorno=app. Usa o referrer nativo
+    // (ou a ausência de referrer fora do Shopify Web) como fallback.
+    const retornoApp =
+      retorno === "app" ||
+      veioDaShopifyAndroid ||
+      (
+        ambienteAndroid() &&
+        retorno === "browser" &&
+        !veioDeShopifyWeb &&
+        !referrerOrigem
+      );
+    const retornoBrowser = !retornoApp;
+    const modoRetorno = params.get("modo_retorno") || "";
+    const modoConsulta = params.get("consulta") === "1";
+    let completionToken =
+      params.get("completion_token") || "";
+    let backendUrl =
+      (
+        params.get("backend_url") ||
+        "https://atua-zona-pedidos-backend-production.up.railway.app"
+      ).replace(/\/+$/, "");
+    let prontoParaConfirmar = false;
+    let aMarcarPronto = false;
+    const variosProdutos = produtos.length > 1;
+
+    async function prepararPedidoAutomaticamente() {
+      if (
+        modoConsulta ||
+        !orderId ||
+        !dadosCliente ||
+        !backendUrl ||
+        completionToken
+      ) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          backendUrl + "/api/prepare-order",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              order_id: orderId,
+              cliente: dadosCliente,
+            }),
+          },
+        );
+
+        const result = await response
+          .json()
+          .catch(function () {
+            return {};
+          });
+
+        if (!response.ok || !result.ok) {
+          throw new Error(
+            result.error ||
+              "Não foi possível preparar a encomenda.",
+          );
+        }
+
+        completionToken =
+          String(result.completion_token || "");
+
+        if (result.backend_url) {
+          backendUrl =
+            String(result.backend_url).replace(/\/+$/, "");
+        }
+
+        prontoParaConfirmar =
+          result.fase === "confirmar" ||
+          result.fase === "concluido";
+
+        atualizarBotaoFinal();
+      } catch (erro) {
+        console.error(
+          "Não foi possível preparar automaticamente o pedido:",
+          erro,
+        );
+
+        estadoEl.textContent =
+          "O envio pode continuar, mas a confirmação automática não ficou disponível. Podes voltar ao Shopify no fim.";
+      }
+    }
+
+    async function marcarProntoParaConfirmar() {
+      if (
+        modoConsulta ||
+        prontoParaConfirmar ||
+        aMarcarPronto ||
+        !completionToken ||
+        !backendUrl ||
+        !tudoEnviado()
+      ) {
+        return prontoParaConfirmar;
+      }
+
+      aMarcarPronto = true;
+
+      try {
+        const response = await fetch(
+          backendUrl + "/api/ready-order",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              completion_token: completionToken,
+            }),
+            keepalive: true,
+          },
+        );
+
+        const result = await response
+          .json()
+          .catch(function () {
+            return {};
+          });
+
+        if (!response.ok || !result.ok) {
+          throw new Error(
+            result.error ||
+              "Não foi possível preparar a confirmação.",
+          );
+        }
+
+        prontoParaConfirmar = true;
+
+        estadoEl.textContent =
+          "Envio preparado. Volta ao Shopify para confirmar.";
+
+        return true;
+      } catch (erro) {
+        console.error(
+          "Não foi possível marcar o envio como pronto para confirmação:",
+          erro,
+        );
+
+        estadoEl.textContent =
+          erro && erro.message
+            ? erro.message
+            : "Não foi possível preparar a confirmação.";
+
+        return false;
+      } finally {
+        aMarcarPronto = false;
+      }
+    }
+
+    tituloPaginaEl.textContent = "Enviar pedido ao fornecedor";
+
+    if (dadosCliente) {
+      clienteTextoEl.textContent = dadosCliente;
+      clienteBlocoEl.classList.remove("oculto");
+    }
+
+    const blocosProdutos = [];
+    const botoesProdutos = [];
+
+    produtos.forEach(function (produto, index) {
+      const bloco = document.createElement("section");
+      bloco.className = "bloco";
+      bloco.id = "produto-" + (index + 1);
+      blocosProdutos.push(bloco);
+
+      const titulo = document.createElement("h2");
+      titulo.textContent = "Produto " + (index + 1);
+      bloco.appendChild(titulo);
+
+      if (produto.imagem) {
+        const imagem = document.createElement("img");
+        imagem.src = produto.imagem;
+        imagem.alt = "Produto " + (index + 1);
+        bloco.appendChild(imagem);
+      }
+
+      const texto = document.createElement("pre");
+      texto.textContent = String(produto.texto || "")
+        .replace(/\n{2,}/g, "\n")
+        .trim();
+      bloco.appendChild(texto);
+
+      const botao = document.createElement("button");
+      botao.type = "button";
+      botao.className = "botao-enviar";
+      botao.textContent = ambienteMovel()
+        ? (
+            variosProdutos
+              ? "Enviar produto " + (index + 1)
+              : "Enviar produto + dados"
+          )
+        : "Copiar imagem do produto " + (index + 1);
+
+      botoesProdutos.push(botao);
+
+      botao.addEventListener("click", function () {
+        partilharProduto(produto, index, botao);
+      });
+
+      bloco.appendChild(botao);
+
+      produtosEl.appendChild(bloco);
+    });
+
+    function extensaoPorTipo(tipo) {
+      if (tipo.includes("png")) return "png";
+      if (tipo.includes("webp")) return "webp";
+      if (tipo.includes("gif")) return "gif";
+      return "jpg";
+    }
+
+    function nomeSeguro(valor) {
+      return String(valor || "produto")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "produto";
+    }
+
+    async function carregarBlobImagem(url) {
+      if (!url) {
+        throw new Error("Produto sem imagem.");
+      }
+
+      const response = await fetch(url, {
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Não foi possível carregar a imagem.");
+      }
+
+      return await response.blob();
+    }
+
+    async function ficheiroImagemOriginal(produto, index) {
+      const blob = await carregarBlobImagem(produto.imagem);
+      const tipo = blob.type || "image/jpeg";
+      const extensao = extensaoPorTipo(tipo);
+
+      return new File(
+        [blob],
+        "produto-" + (index + 1) + "." + extensao,
+        {type: tipo},
+      );
+    }
+
+    function chaveEstado() {
+      return "atua-zona-envio:" + location.pathname + location.search;
+    }
+
+    function lerEstado() {
+      try {
+        return JSON.parse(sessionStorage.getItem(chaveEstado()) || "{}");
+      } catch (erro) {
+        return {};
+      }
+    }
+
+    function guardarEstado(parcial) {
+      const atual = lerEstado();
+      sessionStorage.setItem(
+        chaveEstado(),
+        JSON.stringify(Object.assign({}, atual, parcial)),
+      );
+
+      atualizarBotaoFinal();
+    }
+
+    function tudoEnviado() {
+      const estado = lerEstado();
+
+      if (dadosCliente && !estado.cliente) {
+        return false;
+      }
+
+      return produtos.every(function (_produto, index) {
+        return Boolean(estado["produto" + index]);
+      });
+    }
+
+    function atualizarBotaoFinal() {
+      const concluido = tudoEnviado();
+
+      if (modoConsulta) {
+        marcarFornecedorEl.disabled = false;
+        marcarFornecedorEl.textContent = "Fechar";
+        fecharEl.classList.add("oculto");
+        return;
+      }
+
+      const retornoPreparado =
+        prontoParaConfirmar || Boolean(completionToken);
+
+      marcarFornecedorEl.disabled =
+        !concluido || !retornoPreparado;
+
+      marcarFornecedorEl.textContent =
+        !concluido
+          ? "Envia primeiro os dados e todos os produtos"
+          : retornoPreparado
+            ? "Voltar ao Shopify para confirmar"
+            : "A preparar confirmação...";
+
+      fecharEl.classList.toggle("oculto", concluido);
+
+    }
+
+    function marcarBotaoEnviado(botao, texto) {
+      botao.textContent = texto;
+      botao.classList.add("botao-enviado");
+    }
+
+    function irParaElemento(elemento, posicao) {
+      if (!elemento) return;
+
+      setTimeout(function () {
+        elemento.scrollIntoView({
+          behavior: "smooth",
+          block: posicao || "start",
+        });
+      }, 250);
+    }
+
+    function ambienteMovel() {
+      return /Android|iPhone|iPad|iPod/i.test(
+        String(navigator.userAgent || ""),
+      );
+    }
+
+    function ambienteAndroid() {
+      return /Android/i.test(String(navigator.userAgent || ""));
+    }
+
+    function linkWhatsAppTexto(texto) {
+      return "https://wa.me/?text=" + encodeURIComponent(String(texto || ""));
+    }
+
+    function linkWhatsAppWebTexto(texto) {
+      return (
+        "https://web.whatsapp.com/send?text=" +
+        encodeURIComponent(String(texto || ""))
+      );
+    }
+
+    function linkWhatsAppBusinessAndroid(texto) {
+      const mensagem = encodeURIComponent(String(texto || ""));
+      const fallback = encodeURIComponent(linkWhatsAppTexto(texto));
+
+      return (
+        "intent://send?text=" +
+        mensagem +
+        "#Intent;" +
+        "scheme=whatsapp;" +
+        "package=com.whatsapp.w4b;" +
+        "S.browser_fallback_url=" +
+        fallback +
+        ";end"
+      );
+    }
+
+    function abrirWhatsAppPreferidoAndroid(texto) {
+      location.href = linkWhatsAppBusinessAndroid(texto);
+    }
+
+    function abrirWhatsAppComTexto(texto, janelaExistente) {
+      const url = ambienteMovel()
+        ? linkWhatsAppTexto(texto)
+        : linkWhatsAppWebTexto(texto);
+
+      if (!ambienteMovel()) {
+        // Reutiliza a referência exata ao primeiro separador do WhatsApp.
+        // Não depende de window.name, que o browser pode perder ao navegar
+        // para outro domínio.
+        if (
+          janelaWhatsAppControlada &&
+          !janelaWhatsAppControlada.closed
+        ) {
+          try {
+            janelaWhatsAppControlada.location.href = url;
+            janelaWhatsAppControlada.focus();
+            return;
+          } catch (_erro) {
+            janelaWhatsAppControlada = null;
+          }
+        }
+
+        janelaWhatsAppControlada = window.open(
+          url,
+          "_blank",
+        );
+
+        if (!janelaWhatsAppControlada) {
+          throw new Error(
+            "O browser bloqueou a abertura do WhatsApp.",
+          );
+        }
+
+        try {
+          janelaWhatsAppControlada.focus();
+        } catch (_erro) {}
+
+        return;
+      }
+
+      if (janelaExistente && !janelaExistente.closed) {
+        janelaExistente.location.href = url;
+
+        try {
+          janelaExistente.focus();
+        } catch (_erro) {}
+
+        return;
+      }
+
+      window.open(url, "_blank", "noopener");
+    }
+
+    async function blobParaPng(blob) {
+      if (String(blob.type || "").toLowerCase() === "image/png") {
+        return blob;
+      }
+
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+
+      const contexto = canvas.getContext("2d");
+      if (!contexto) {
+        bitmap.close();
+        throw new Error("Não foi possível preparar a imagem.");
+      }
+
+      contexto.drawImage(bitmap, 0, 0);
+      bitmap.close();
+
+      return await new Promise(function (resolve, reject) {
+        canvas.toBlob(function (png) {
+          if (png) {
+            resolve(png);
+          } else {
+            reject(new Error("Não foi possível converter a imagem."));
+          }
+        }, "image/png");
+      });
+    }
+
+    async function copiarTextoParaClipboard(texto) {
+      if (
+        !navigator.clipboard ||
+        typeof navigator.clipboard.writeText !== "function"
+      ) {
+        throw new Error("Clipboard de texto indisponível.");
+      }
+
+      await navigator.clipboard.writeText(String(texto || ""));
+    }
+
+    async function copiarImagemParaClipboard(produto) {
+      if (
+        !navigator.clipboard ||
+        typeof navigator.clipboard.write !== "function" ||
+        typeof ClipboardItem === "undefined"
+      ) {
+        throw new Error("Clipboard de imagem indisponível.");
+      }
+
+      if (!produto.imagem) {
+        throw new Error("Produto sem imagem.");
+      }
+
+      // Importante: chama clipboard.write imediatamente no clique.
+      // O carregamento/conversão da imagem continua através de uma Promise,
+      // preservando a autorização de escrita do browser.
+      const pngPrometido = (async function () {
+        const blobOriginal = await carregarBlobImagem(produto.imagem);
+        return await blobParaPng(blobOriginal);
+      })();
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "image/png": pngPrometido,
+        }),
+      ]);
+
+      // Garante que a Promise terminou sem erro antes de considerar pronto.
+      await pngPrometido;
+    }
+
+    function restaurarEstado() {
+      const estado = lerEstado();
+
+      if (estado.concluido) {
+        try {
+          sessionStorage.removeItem(chaveEstado());
+        } catch (_erro) {}
+
+        atualizarBotaoFinal();
+        return;
+      }
+
+      if (estado.cliente) {
+        marcarBotaoEnviado(
+          enviarClienteEl,
+          "Dados do cliente enviados ✓",
+        );
+      }
+
+      botoesProdutos.forEach(function (botao, index) {
+        if (estado["produto" + index]) {
+          marcarBotaoEnviado(
+            botao,
+            ambienteMovel()
+              ? "Produto " + (index + 1) + " enviado ✓"
+              : "Produto " + (index + 1) + " preparado ✓",
+          );
+          return;
+        }
+
+        if (
+          !ambienteMovel() &&
+          estado["produtoImagem" + index]
+        ) {
+          botao.textContent =
+            "Copiar dados do produto " + (index + 1);
+        }
+      });
+
+      atualizarBotaoFinal();
+    }
+
+    async function partilharCliente() {
+      estadoEl.textContent = "A preparar os dados do cliente...";
+
+      try {
+        if (!dadosCliente) {
+          throw new Error("Não existem dados do cliente.");
+        }
+
+        if (!ambienteMovel()) {
+          await copiarTextoParaClipboard(dadosCliente);
+
+          guardarEstado({cliente: true});
+          marcarBotaoEnviado(
+            enviarClienteEl,
+            "Dados do cliente copiados ✓",
+          );
+
+          estadoEl.textContent =
+            "Dados do cliente copiados. Cola-os no WhatsApp que já tens aberto.";
+
+          irParaElemento(blocosProdutos[0], "start");
+          return;
+        }
+
+        if (ambienteAndroid()) {
+          abrirWhatsAppPreferidoAndroid(dadosCliente);
+          guardarEstado({cliente: true});
+          marcarBotaoEnviado(
+            enviarClienteEl,
+            "Dados do cliente preparados ✓",
+          );
+          estadoEl.textContent =
+            "A abrir o WhatsApp Business. Se não estiver instalado, será usado o WhatsApp normal.";
+          irParaElemento(blocosProdutos[0], "start");
+          return;
+        }
+
+        if (navigator.share) {
+          estadoEl.textContent = "";
+          await navigator.share({
+            title: "Dados do cliente",
+            text: dadosCliente,
+          });
+
+          guardarEstado({cliente: true});
+          marcarBotaoEnviado(
+            enviarClienteEl,
+            "Dados do cliente enviados ✓",
+          );
+          irParaElemento(blocosProdutos[0], "start");
+          return;
+        }
+
+        location.href = linkWhatsAppTexto(dadosCliente);
+      } catch (erro) {
+        if (erro && erro.name === "AbortError") {
+          estadoEl.textContent = "";
+          return;
+        }
+
+        console.error(erro);
+        estadoEl.textContent = "Não foi possível partilhar os dados do cliente.";
+      }
+    }
+
+    async function partilharProduto(produto, index, botao) {
+      estadoEl.textContent = "A preparar o produto " + (index + 1) + "...";
+      botao.disabled = true;
+
+      try {
+        if (!ambienteMovel()) {
+          const estadoAtual = lerEstado();
+          const imagemJaCopiada =
+            Boolean(estadoAtual["produtoImagem" + index]);
+          const dadosJaCopiados =
+            Boolean(estadoAtual["produtoDados" + index]);
+
+          if (!imagemJaCopiada) {
+            await copiarImagemParaClipboard(produto);
+
+            guardarEstado({
+              ["produtoImagem" + index]: true,
+            });
+
+            botao.textContent =
+              "Copiar dados do produto " + (index + 1);
+            botao.classList.remove("botao-enviado");
+
+            estadoEl.textContent =
+              "Imagem copiada ✓ Cola-a no WhatsApp com Ctrl+V. Depois volta aqui e carrega no mesmo botão para copiar os dados.";
+
+            return;
+          }
+
+          if (!dadosJaCopiados) {
+            await copiarTextoParaClipboard(produto.texto);
+
+            guardarEstado({
+              ["produtoDados" + index]: true,
+              ["produto" + index]: true,
+            });
+
+            marcarBotaoEnviado(
+              botao,
+              "Produto " + (index + 1) + " preparado ✓",
+            );
+
+            estadoEl.textContent =
+              "Dados copiados ✓ Cola-os no WhatsApp com Ctrl+V.";
+
+            const proximoBloco = blocosProdutos[index + 1];
+
+            if (proximoBloco) {
+              irParaElemento(proximoBloco, "start");
+            } else {
+              irParaElemento(marcarFornecedorEl, "center");
+            }
+
+            return;
+          }
+
+          estadoEl.textContent =
+            "Este produto já foi preparado.";
+          return;
+        }
+
+        if (ambienteAndroid()) {
+          // Primeiro tenta a partilha nativa do Android com a fotografia
+          // anexada como ficheiro + os dados do produto como texto.
+          try {
+            if (navigator.share) {
+              const ficheiro = await ficheiroImagemOriginal(produto, index);
+
+              const podePartilharFicheiro =
+                !navigator.canShare ||
+                navigator.canShare({files: [ficheiro]});
+
+              if (podePartilharFicheiro) {
+                estadoEl.textContent =
+                  "Escolhe o WhatsApp para enviar a imagem + os dados.";
+
+                await navigator.share({
+                  title: "Produto " + (index + 1),
+                  text: produto.texto,
+                  files: [ficheiro],
+                });
+
+                guardarEstado({["produto" + index]: true});
+                marcarBotaoEnviado(
+                  botao,
+                  "Produto " + (index + 1) + " enviado ✓",
+                );
+
+                estadoEl.textContent =
+                  "Imagem + dados partilhados ✓";
+
+                const proximoBloco = blocosProdutos[index + 1];
+
+                if (proximoBloco) {
+                  irParaElemento(proximoBloco, "start");
+                } else {
+                  irParaElemento(marcarFornecedorEl, "center");
+                }
+
+                return;
+              }
+            }
+          } catch (erroPartilha) {
+            if (erroPartilha && erroPartilha.name === "AbortError") {
+              estadoEl.textContent = "";
+              return;
+            }
+
+            console.warn(
+              "A partilha nativa com ficheiro falhou; a usar o método alternativo:",
+              erroPartilha,
+            );
+          }
+
+          // Fallback: comportamento anterior.
+          let imagemCopiada = false;
+
+          try {
+            await copiarImagemParaClipboard(produto);
+            imagemCopiada = true;
+          } catch (erroClipboard) {
+            console.warn(
+              "Não foi possível copiar automaticamente a imagem:",
+              erroClipboard,
+            );
+          }
+
+          abrirWhatsAppPreferidoAndroid(produto.texto);
+
+          guardarEstado({["produto" + index]: true});
+          marcarBotaoEnviado(
+            botao,
+            "Produto " + (index + 1) + " preparado ✓",
+          );
+
+          estadoEl.textContent = imagemCopiada
+            ? "A abrir o WhatsApp Business. Escolhe o contacto ou grupo e cola a imagem."
+            : "A abrir o WhatsApp Business. Se não estiver instalado, será usado o WhatsApp normal.";
+
+          const proximoBloco = blocosProdutos[index + 1];
+
+          if (proximoBloco) {
+            irParaElemento(proximoBloco, "start");
+          } else {
+            irParaElemento(marcarFornecedorEl, "center");
+          }
+
+          return;
+        }
+
+        if (!navigator.share || !navigator.canShare) {
+          throw new Error("Este browser não suporta partilha de ficheiros.");
+        }
+
+        const ficheiro = await ficheiroImagemOriginal(produto, index);
+
+        if (!navigator.canShare({files: [ficheiro]})) {
+          throw new Error("Este dispositivo não permite partilhar esta imagem.");
+        }
+
+        estadoEl.textContent = "";
+
+        await navigator.share({
+          title: "Produto " + (index + 1),
+          text: produto.texto,
+          files: [ficheiro],
+        });
+
+        guardarEstado({["produto" + index]: true});
+        marcarBotaoEnviado(
+          botao,
+          "Produto " + (index + 1) + " enviado ✓",
+        );
+
+        const proximoBloco = blocosProdutos[index + 1];
+
+        if (proximoBloco) {
+          irParaElemento(proximoBloco, "start");
+        } else {
+          irParaElemento(marcarFornecedorEl, "center");
+        }
+      } catch (erro) {
+        if (erro && erro.name === "AbortError") {
+          estadoEl.textContent = "";
+          return;
+        }
+
+        console.error(erro);
+        estadoEl.textContent =
+          "Não foi possível preparar este produto para o WhatsApp.";
+      } finally {
+        botao.disabled = false;
+      }
+    }
+
+    enviarClienteEl.addEventListener("click", partilharCliente);
+
+    restaurarEstado();
+
+    if (!modoConsulta) {
+      void prepararPedidoAutomaticamente();
+    }
+
+    function criarIntentShopifyAndroid(orderId, fallbackReturnUrl) {
+      const id = encodeURIComponent(String(orderId || "").trim());
+
+      if (!id) {
+        return "";
+      }
+
+      // O esquema shopify:// funciona dentro do contexto do Admin/App Bridge,
+      // mas o Chrome só consegue abrir uma app quando existe um Intent Android
+      // BROWSABLE compatível. Por isso, no Android externo usa o URL HTTPS real
+      // da encomenda e força explicitamente o pacote oficial da Shopify.
+      const destinoHttps = String(fallbackReturnUrl || "").trim();
+
+      if (destinoHttps) {
+        try {
+          const url = new URL(destinoHttps);
+
+          if (/^https?:$/i.test(url.protocol)) {
+            return (
+              "intent://" +
+              url.host +
+              url.pathname +
+              url.search +
+              "#Intent;" +
+              "scheme=" +
+              url.protocol.replace(":", "") +
+              ";" +
+              "package=com.shopify.mobile;" +
+              "end"
+            );
+          }
+        } catch (_erro) {}
+      }
+
+      // Fallback sem browser: mantém o esquema administrativo da Shopify.
+      return (
+        "intent://admin/orders/" +
+        id +
+        "#Intent;" +
+        "scheme=shopify;" +
+        "package=com.shopify.mobile;" +
+        "end"
+      );
+    }
+
+    function voltarAoShopifyMantendoJanela() {
+      // Mantém o regresso estável ao contexto de onde o envio foi aberto.
+      voltarAoShopify();
+    }
+
+    function voltarAoShopify() {
+      estadoEl.textContent = "A voltar ao Shopify...";
+
+      // Com a página aberta em _self na app Shopify, isto volta
+      // exatamente ao contexto anterior da própria app.
+      try {
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+      } catch (_erro) {}
+
+      // Fallback apenas se não existir histórico utilizável.
+      if (retornoApp || modoRetorno === "app") {
+        if (ambienteAndroid() && orderId) {
+          const intentShopify =
+            criarIntentShopifyAndroid(orderId, returnUrl);
+
+          if (intentShopify) {
+            window.location.href = intentShopify;
+            return;
+          }
+        }
+
+        if (orderId) {
+          const deepLinkShopify =
+            "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+          try {
+            window.location.href = deepLinkShopify;
+            return;
+          } catch (_erro) {}
+        }
+      }
+
+      if (returnUrl) {
+        window.location.href = returnUrl;
+        return;
+      }
+
+      try {
+        window.close();
+      } catch (_erro) {}
+
+      estadoEl.textContent =
+        "Fecha este separador para voltar ao Shopify.";
+    }
+
+    marcarFornecedorEl.addEventListener(
+      "click",
+      async function () {
+        if (modoConsulta) {
+          voltarAoShopify();
+          return;
+        }
+
+        if (!tudoEnviado()) {
+          return;
+        }
+
+        // A preparação do token já terminou antes de o botão ficar ativo.
+        // Inicia a atualização do estado com keepalive, mas NÃO espera pela
+        // resposta antes de regressar à Shopify. Assim o clique do utilizador
+        // continua válido para o Android abrir a app diretamente.
+        if (!prontoParaConfirmar) {
+          void marcarProntoParaConfirmar();
+        }
+
+        voltarAoShopifyMantendoJanela();
+      },
+    );
+
+    fecharEl.addEventListener("click", function () {
+      voltarAoShopify();
+    });
+  </script>
+</body>
+</html>
