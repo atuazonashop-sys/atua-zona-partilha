@@ -552,6 +552,31 @@
       return prontoParaConfirmar;
     }
 
+    async function sincronizarEVoltarAoShopify() {
+      if (modoConsulta || !tudoEnviado()) {
+        return false;
+      }
+
+      marcarFornecedorEl.disabled = true;
+      marcarFornecedorEl.textContent = "A confirmar envio...";
+      estadoEl.textContent =
+        "A atualizar o estado da encomenda para Confirmar envio...";
+
+      const pronto = await sincronizarConfirmacaoAutomaticamente();
+
+      if (!pronto) {
+        marcarFornecedorEl.disabled = false;
+        marcarFornecedorEl.textContent = "Tentar novamente";
+        return false;
+      }
+
+      estadoEl.textContent =
+        "Estado atualizado para Confirmar envio. A voltar ao Shopify...";
+
+      voltarAoShopifyMantendoJanela();
+      return true;
+    }
+
     function guardarEstado(parcial) {
       const atual = lerEstado();
       sessionStorage.setItem(
@@ -561,12 +586,9 @@
 
       atualizarBotaoFinal();
 
-      // Assim que todos os dados e produtos ficam marcados como enviados,
-      // muda automaticamente o estado da encomenda para "Confirmar envio".
-      // Não depende de o utilizador carregar no botão final.
-      if (!modoConsulta && tudoEnviado()) {
-        void sincronizarConfirmacaoAutomaticamente();
-      }
+      // A confirmação final é sincronizada de forma explícita quando o
+      // utilizador regressa do WhatsApp ou termina a última partilha.
+      // Evita lançar um fetch em background e sair da página antes da resposta.
     }
 
     function tudoEnviado() {
@@ -992,7 +1014,11 @@
                 if (proximoBloco) {
                   irParaElemento(proximoBloco, "start");
                 } else {
-                  irParaElemento(marcarFornecedorEl, "center");
+                  const regressou = await sincronizarEVoltarAoShopify();
+
+                  if (!regressou) {
+                    irParaElemento(marcarFornecedorEl, "center");
+                  }
                 }
 
                 return;
@@ -1075,7 +1101,11 @@
         if (proximoBloco) {
           irParaElemento(proximoBloco, "start");
         } else {
-          irParaElemento(marcarFornecedorEl, "center");
+          const regressou = await sincronizarEVoltarAoShopify();
+
+          if (!regressou) {
+            irParaElemento(marcarFornecedorEl, "center");
+          }
         }
       } catch (erro) {
         if (erro && erro.name === "AbortError") {
@@ -1102,7 +1132,7 @@
       // é retomada sem exigir que o utilizador recarregue a página.
       window.addEventListener("pageshow", function () {
         if (tudoEnviado()) {
-          void sincronizarConfirmacaoAutomaticamente();
+          void sincronizarEVoltarAoShopify();
         }
       });
 
@@ -1111,7 +1141,7 @@
           document.visibilityState === "visible" &&
           tudoEnviado()
         ) {
-          void sincronizarConfirmacaoAutomaticamente();
+          void sincronizarEVoltarAoShopify();
         }
       });
     }
