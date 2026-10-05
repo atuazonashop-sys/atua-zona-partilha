@@ -1183,35 +1183,18 @@
       estadoEl.textContent =
         "A voltar ao Shopify para confirmar...";
 
-      // Shopify Mobile: a página é aberta em _self a partir do bloco.
-      // Voltar no histórico devolve ao contexto da app, sem intent://
-      // e sem o aviso "Continuar para Shopify?".
-      if (retornoApp || modoRetorno === "app") {
+      // No telemóvel, não dependemos do modo enviado pela extensão.
+      // A versão 133 fica intacta e esta página usa diretamente o URL
+      // HTTPS real da encomenda para regressar ao Shopify.
+      if (ambienteMovel() && returnUrl) {
         try {
-          if (window.history.length > 1) {
-            window.history.back();
-            return;
-          }
+          window.location.href = returnUrl;
+          return;
         } catch (_erro) {}
-
-        // A Shopify Mobile lançou esta página num novo contexto do Chrome,
-        // por isso não existe histórico para regressar. Usa o URL HTTPS real
-        // da encomenda como fallback. No Android, este URL pode ser tratado
-        // pela app Shopify sem usar intent:// nem shopify://.
-        if (returnUrl) {
-          try {
-            window.location.replace(returnUrl);
-            return;
-          } catch (_erro) {}
-        }
-
-        estadoEl.textContent =
-          "Envio preparado. Usa a tecla Retroceder para voltar ao Shopify e confirmar.";
-        return;
       }
 
-      // Browser/computador: a página foi aberta separada.
-      // Fecha-a para revelar novamente o Shopify.
+      // No computador, a página de envio abre num separador próprio.
+      // Fecha-o para revelar novamente o Admin Shopify.
       try {
         window.close();
       } catch (_erro) {}
