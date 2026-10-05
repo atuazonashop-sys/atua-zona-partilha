@@ -270,9 +270,7 @@
         "https://atua-zona-pedidos-backend-production.up.railway.app"
       ).replace(/\/+$/, "");
     let prontoParaConfirmar = false;
-    let pedidoConcluido = false;
     let aMarcarPronto = false;
-    let aConfirmarPedido = false;
     const variosProdutos = produtos.length > 1;
 
     async function prepararPedidoAutomaticamente() {
@@ -322,11 +320,9 @@
             String(result.backend_url).replace(/\/+$/, "");
         }
 
-        pedidoConcluido =
-          result.fase === "concluido";
-
         prontoParaConfirmar =
-          result.fase === "confirmar";
+          result.fase === "confirmar" ||
+          result.fase === "concluido";
 
         atualizarBotaoFinal();
       } catch (erro) {
@@ -401,85 +397,6 @@
         return false;
       } finally {
         aMarcarPronto = false;
-      }
-    }
-
-    async function concluirPedidoConfirmado() {
-      if (
-        modoConsulta ||
-        pedidoConcluido ||
-        aConfirmarPedido ||
-        !prontoParaConfirmar ||
-        !completionToken ||
-        !backendUrl
-      ) {
-        return pedidoConcluido;
-      }
-
-      aConfirmarPedido = true;
-
-      try {
-        const response = await fetch(
-          backendUrl + "/api/complete-order",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              completion_token: completionToken,
-            }),
-          },
-        );
-
-        const result = await response
-          .json()
-          .catch(function () {
-            return {};
-          });
-
-        if (!response.ok || !result.ok) {
-          throw new Error(
-            result.error ||
-              "Não foi possível confirmar o pedido ao fornecedor.",
-          );
-        }
-
-        pedidoConcluido = true;
-        prontoParaConfirmar = false;
-
-        try {
-          sessionStorage.removeItem(chaveEstado());
-        } catch (_erro) {}
-
-        tituloPaginaEl.textContent =
-          "Pedido ao fornecedor";
-        clienteBlocoEl.classList.add("oculto");
-        produtosEl.classList.add("oculto");
-        fecharEl.classList.add("oculto");
-
-        marcarFornecedorEl.disabled = false;
-        marcarFornecedorEl.textContent =
-          "Voltar ao Shopify";
-
-        estadoEl.textContent =
-          "✅ Pedido ao fornecedor confirmado.";
-
-        return true;
-      } catch (erro) {
-        console.error(
-          "Não foi possível concluir o pedido ao fornecedor:",
-          erro,
-        );
-
-        estadoEl.textContent =
-          erro && erro.message
-            ? erro.message
-            : "Não foi possível confirmar o pedido ao fornecedor.";
-
-        return false;
-      } finally {
-        aConfirmarPedido = false;
       }
     }
 
@@ -619,52 +536,14 @@
     }
 
     function atualizarBotaoFinal() {
+      const concluido = tudoEnviado();
+
       if (modoConsulta) {
         marcarFornecedorEl.disabled = false;
         marcarFornecedorEl.textContent = "Fechar";
         fecharEl.classList.add("oculto");
         return;
       }
-
-      if (pedidoConcluido) {
-        tituloPaginaEl.textContent =
-          "Pedido ao fornecedor";
-        clienteBlocoEl.classList.add("oculto");
-        produtosEl.classList.add("oculto");
-        fecharEl.classList.add("oculto");
-
-        marcarFornecedorEl.disabled = false;
-        marcarFornecedorEl.textContent =
-          "Voltar ao Shopify";
-        estadoEl.textContent =
-          "✅ Pedido ao fornecedor confirmado.";
-        return;
-      }
-
-      if (prontoParaConfirmar) {
-        tituloPaginaEl.textContent =
-          "Confirmar envio ao fornecedor";
-        clienteBlocoEl.classList.add("oculto");
-        produtosEl.classList.add("oculto");
-        fecharEl.classList.remove("oculto");
-
-        marcarFornecedorEl.disabled = false;
-        marcarFornecedorEl.textContent =
-          "Confirmar envio ao fornecedor";
-        estadoEl.textContent =
-          "Confirma apenas se já enviaste os dados do cliente e todos os produtos.";
-        return;
-      }
-
-      tituloPaginaEl.textContent =
-        "Enviar pedido ao fornecedor";
-      produtosEl.classList.remove("oculto");
-
-      if (dadosCliente) {
-        clienteBlocoEl.classList.remove("oculto");
-      }
-
-      const concluido = tudoEnviado();
 
       marcarFornecedorEl.disabled = !concluido;
       marcarFornecedorEl.textContent = concluido
@@ -1253,34 +1132,6 @@
           return;
         }
 
-        if (pedidoConcluido) {
-          voltarAoShopify();
-          return;
-        }
-
-        if (prontoParaConfirmar) {
-          marcarFornecedorEl.disabled = true;
-          marcarFornecedorEl.textContent =
-            "A confirmar...";
-          estadoEl.textContent =
-            "A confirmar o pedido ao fornecedor...";
-
-          const confirmado =
-            await concluirPedidoConfirmado();
-
-          if (!confirmado) {
-            marcarFornecedorEl.disabled = false;
-            marcarFornecedorEl.textContent =
-              "Tentar confirmar novamente";
-            return;
-          }
-
-          setTimeout(function () {
-            voltarAoShopifyMantendoJanela();
-          }, 550);
-          return;
-        }
-
         if (!tudoEnviado()) {
           return;
         }
@@ -1292,6 +1143,7 @@
           "A atualizar o estado da encomenda...";
 
         const pronto =
+          prontoParaConfirmar ||
           await marcarProntoParaConfirmar();
 
         if (!pronto) {
