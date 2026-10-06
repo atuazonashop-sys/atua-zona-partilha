@@ -529,6 +529,7 @@
           // O utilizador deve corrigir os dados na Shopify antes de enviar
           // a encomenda ao fornecedor.
           validacao.bloqueante = true;
+          moradaConfirmadaManualmente = false;
         }
       } catch (erro) {
         console.warn(
@@ -537,11 +538,100 @@
         );
       } finally {
         validacaoPostalPendente = false;
-        confirmarMoradaEl.disabled = false;
+
+        if (!validacaoShopifyPendente) {
+          confirmarMoradaEl.disabled = false;
+        }
 
         mostrarValidacaoMorada();
 
-        if (validacaoMoradaAtual.avisos.length === 0) {
+        if (
+          validacaoMoradaAtual.avisos.length === 0 &&
+          !validacaoShopifyPendente
+        ) {
+          enviarClienteEl.disabled = false;
+        }
+      }
+    }
+
+    async function validarEnvioFaturacaoOnline() {
+      if (!orderId || !dadosCliente || !backendUrl) {
+        return;
+      }
+
+      validacaoShopifyPendente = true;
+      enviarClienteEl.disabled = true;
+      confirmarMoradaEl.disabled = true;
+
+      try {
+        const controlador = new AbortController();
+        const timeout = setTimeout(function () {
+          controlador.abort();
+        }, 4500);
+
+        let response;
+
+        try {
+          response = await fetch(
+            backendUrl + "/api/address-comparison",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                order_id: orderId,
+                cliente: dadosCliente,
+              }),
+              cache: "no-store",
+              signal: controlador.signal,
+            },
+          );
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        const result = await response
+          .json()
+          .catch(function () {
+            return {};
+          });
+
+        if (!response.ok || !result.ok) {
+          return;
+        }
+
+        if (result.mismatch) {
+          const aviso =
+            String(result.message || "").trim() ||
+            "A morada de envio e a de faturação parecem ser a mesma, mas têm localidades diferentes.";
+
+          if (!validacaoMoradaAtual.avisos.includes(aviso)) {
+            validacaoMoradaAtual.avisos.push(aviso);
+            validacaoMoradaAtual.sinaisFortes += 1;
+          }
+
+          validacaoMoradaAtual.bloqueante = true;
+          moradaConfirmadaManualmente = false;
+        }
+      } catch (erro) {
+        console.warn(
+          "Não foi possível comparar morada de envio e faturação:",
+          erro,
+        );
+      } finally {
+        validacaoShopifyPendente = false;
+
+        if (!validacaoPostalPendente) {
+          confirmarMoradaEl.disabled = false;
+        }
+
+        mostrarValidacaoMorada();
+
+        if (
+          validacaoMoradaAtual.avisos.length === 0 &&
+          !validacaoPostalPendente
+        ) {
           enviarClienteEl.disabled = false;
         }
       }
@@ -657,6 +747,7 @@
       validacaoMoradaAtual.avisos.length === 0;
 
     let validacaoPostalPendente = false;
+    let validacaoShopifyPendente = false;
 
     let completionToken =
       params.get("completion_token") || "";
@@ -809,7 +900,10 @@
       if (validacaoMoradaAtual.avisos.length === 0) {
         moradaAvisoEl.classList.add("oculto");
 
-        if (!validacaoPostalPendente) {
+        if (
+          !validacaoPostalPendente &&
+          !validacaoShopifyPendente
+        ) {
           enviarClienteEl.disabled = false;
         }
 
@@ -850,6 +944,7 @@
 
     mostrarValidacaoMorada();
     void validarCodigoPostalCidadeOnline();
+    void validarEnvioFaturacaoOnline();
 
     const blocosProdutos = [];
     const botoesProdutos = [];
@@ -1275,9 +1370,12 @@
     }
 
     async function partilharCliente() {
-      if (validacaoPostalPendente) {
+      if (
+        validacaoPostalPendente ||
+        validacaoShopifyPendente
+      ) {
         estadoEl.textContent =
-          "A validar código postal e localidade. Tenta novamente dentro de um instante.";
+          "A validar a morada. Tenta novamente dentro de um instante.";
         return;
       }
 
