@@ -856,6 +856,13 @@
     const veioDaShopifyAndroid =
       /^android-app:\/\/com\.shopify\.mobile(?:\/|$)/i
         .test(referrerOrigem);
+    const abriuDeSeparadorBrowser = (function () {
+      try {
+        return Boolean(window.opener);
+      } catch (_erro) {
+        return false;
+      }
+    })();
 
     // Em Admin UI Extensions o ambiente móvel nem sempre chega corretamente
     // ao link externo. No Android, uma página lançada pela app Shopify pode
@@ -868,6 +875,7 @@
         ambienteAndroid() &&
         retorno === "browser" &&
         !veioDeShopifyWeb &&
+        !abriuDeSeparadorBrowser &&
         !referrerOrigem
       );
     const retornoBrowser = !retornoApp;
@@ -1896,14 +1904,57 @@
       voltarAoShopify();
     }
 
+    function voltarAoShopifyNoBrowser() {
+      // Quando o envio foi aberto a partir do Shopify no browser,
+      // nunca navegamos diretamente para admin.shopify.com no Android:
+      // esse URL pode ser intercetado pela app Shopify.
+      //
+      // Primeiro fecha o separador externo, se tiver sido aberto pelo
+      // browser. Caso esteja no mesmo separador, regressa pelo histórico.
+      try {
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.focus();
+          } catch (_erro) {}
+
+          window.close();
+          return true;
+        }
+      } catch (_erro) {}
+
+      try {
+        if (window.history.length > 1) {
+          window.history.back();
+          return true;
+        }
+      } catch (_erro) {}
+
+      return false;
+    }
+
     function voltarAoShopify() {
       estadoEl.textContent =
         "A voltar ao Shopify para confirmar...";
 
-      // No telemóvel, não dependemos do modo enviado pela extensão.
-      // A versão 133 fica intacta e esta página usa diretamente o URL
-      // HTTPS real da encomenda para regressar ao Shopify.
-      if (ambienteMovel() && returnUrl) {
+      if (ambienteMovel() && retornoBrowser) {
+        estadoEl.textContent =
+          "A voltar ao Shopify no browser...";
+
+        if (voltarAoShopifyNoBrowser()) {
+          return;
+        }
+
+        // Não usa returnUrl neste caso, porque no Android poderia abrir
+        // a app Shopify. Se o browser não permitir fechar/regressar,
+        // deixa a página aberta para o utilizador voltar ao separador anterior.
+        estadoEl.textContent =
+          "Envio preparado. Volta ao separador do Shopify no browser para confirmar.";
+        return;
+      }
+
+      // Se o fluxo começou na app Shopify, mantém o comportamento atual:
+      // o URL HTTPS da encomenda permite ao Android regressar à app.
+      if (ambienteMovel() && retornoApp && returnUrl) {
         try {
           window.location.href = returnUrl;
           return;
