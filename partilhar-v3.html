@@ -869,15 +869,20 @@
     // ao link externo. No Android, uma página lançada pela app Shopify pode
     // chegar ao Chrome sem o parâmetro retorno=app. Usa o referrer nativo
     // (ou a ausência de referrer fora do Shopify Web) como fallback.
+    // Prioridade real da origem:
+    // 1) Se o Android disser que veio da app Shopify, regressa à app.
+    // 2) Se o referrer for o Admin/extension web, mantém no browser,
+    //    mesmo que a extensão tenha enviado retorno=app por engano.
+    // 3) Só depois usa o parâmetro retorno como fallback.
     const retornoApp =
-      retornoParametro === "app" ||
+      veioDaShopifyAndroid ||
       (
-        !retornoParametro &&
+        !veioDeShopifyWeb &&
         (
-          veioDaShopifyAndroid ||
+          retornoParametro === "app" ||
           (
+            !retornoParametro &&
             ambienteAndroid() &&
-            !veioDeShopifyWeb &&
             !abriuDeSeparadorBrowser &&
             !referrerOrigem
           )
@@ -1945,22 +1950,9 @@
     }
 
     function voltarAoShopifyNoBrowser() {
-      // No Android, voltar pelo histórico ou navegar diretamente para
-      // admin.shopify.com pode ser intercetado pela app Shopify.
-      // Quando o fluxo começou no browser, força explicitamente o Chrome.
-      if (ambienteAndroid() && returnUrl) {
-        const intentChrome = criarIntentChrome(returnUrl);
-
-        if (intentChrome) {
-          try {
-            window.location.href = intentChrome;
-            return true;
-          } catch (_erro) {}
-        }
-      }
-
-      // Nos restantes browsers, se a página externa foi aberta num novo
-      // separador, fecha-a e revela o Shopify que já estava no browser.
+      // O fluxo que começou no browser deve voltar ao separador do browser
+      // que já contém o Shopify. Tenta primeiro fechar esta página externa.
+      // Isto evita navegar para admin.shopify.com e disparar a app Android.
       try {
         if (window.opener && !window.opener.closed) {
           try {
@@ -1973,11 +1965,31 @@
       } catch (_erro) {}
 
       try {
+        window.close();
+
+        // Se o browser aceitou fechar, a execução deixa de ser relevante.
+        // Se não aceitou, continua para os fallbacks abaixo.
+      } catch (_erro) {}
+
+      try {
         if (window.history.length > 1) {
           window.history.back();
           return true;
         }
       } catch (_erro) {}
+
+      // Último recurso no Android: abre explicitamente o Chrome.
+      // Só chega aqui se fechar/regressar ao separador anterior falhou.
+      if (ambienteAndroid() && returnUrl) {
+        const intentChrome = criarIntentChrome(returnUrl);
+
+        if (intentChrome) {
+          try {
+            window.location.href = intentChrome;
+            return true;
+          } catch (_erro) {}
+        }
+      }
 
       return false;
     }
