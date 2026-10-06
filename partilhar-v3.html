@@ -848,7 +848,8 @@
     let dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
-    const retorno = params.get("retorno") || "browser";
+    const retornoParametro = params.get("retorno");
+    const retorno = retornoParametro || "browser";
     const referrerOrigem = String(document.referrer || "");
     const veioDeShopifyWeb =
       /^https:\/\/(?:admin\.shopify\.com|extensions\.shopifycdn\.com)(?:\/|$)/i
@@ -869,14 +870,18 @@
     // chegar ao Chrome sem o parâmetro retorno=app. Usa o referrer nativo
     // (ou a ausência de referrer fora do Shopify Web) como fallback.
     const retornoApp =
-      retorno === "app" ||
-      veioDaShopifyAndroid ||
+      retornoParametro === "app" ||
       (
-        ambienteAndroid() &&
-        retorno === "browser" &&
-        !veioDeShopifyWeb &&
-        !abriuDeSeparadorBrowser &&
-        !referrerOrigem
+        !retornoParametro &&
+        (
+          veioDaShopifyAndroid ||
+          (
+            ambienteAndroid() &&
+            !veioDeShopifyWeb &&
+            !abriuDeSeparadorBrowser &&
+            !referrerOrigem
+          )
+        )
       );
     const retornoBrowser = !retornoApp;
     const modoRetorno = params.get("modo_retorno") || "";
@@ -1904,13 +1909,58 @@
       voltarAoShopify();
     }
 
+    function criarIntentChrome(urlOriginal) {
+      const destino = String(urlOriginal || "").trim();
+
+      if (!destino) {
+        return "";
+      }
+
+      try {
+        const url = new URL(destino);
+
+        if (!/^https?:$/i.test(url.protocol)) {
+          return "";
+        }
+
+        return (
+          "intent://" +
+          url.host +
+          url.pathname +
+          url.search +
+          url.hash +
+          "#Intent;" +
+          "scheme=" +
+          url.protocol.replace(":", "") +
+          ";" +
+          "package=com.android.chrome;" +
+          "S.browser_fallback_url=" +
+          encodeURIComponent(destino) +
+          ";" +
+          "end"
+        );
+      } catch (_erro) {
+        return "";
+      }
+    }
+
     function voltarAoShopifyNoBrowser() {
-      // Quando o envio foi aberto a partir do Shopify no browser,
-      // nunca navegamos diretamente para admin.shopify.com no Android:
-      // esse URL pode ser intercetado pela app Shopify.
-      //
-      // Primeiro fecha o separador externo, se tiver sido aberto pelo
-      // browser. Caso esteja no mesmo separador, regressa pelo histórico.
+      // No Android, voltar pelo histórico ou navegar diretamente para
+      // admin.shopify.com pode ser intercetado pela app Shopify.
+      // Quando o fluxo começou no browser, força explicitamente o Chrome.
+      if (ambienteAndroid() && returnUrl) {
+        const intentChrome = criarIntentChrome(returnUrl);
+
+        if (intentChrome) {
+          try {
+            window.location.href = intentChrome;
+            return true;
+          } catch (_erro) {}
+        }
+      }
+
+      // Nos restantes browsers, se a página externa foi aberta num novo
+      // separador, fecha-a e revela o Shopify que já estava no browser.
       try {
         if (window.opener && !window.opener.closed) {
           try {
