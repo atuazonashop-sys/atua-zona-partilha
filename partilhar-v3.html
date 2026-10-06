@@ -360,21 +360,37 @@
       };
     }
 
-    function localidadeEquivalente(cidade, candidatos) {
-      const cidadeNormalizada = normalizarTextoSimples(cidade)
+    function normalizarLocalidade(valor) {
+      return normalizarTextoSimples(valor)
+        .replace(/\([^)]*\)/g, " ")
+        .replace(/\b(?:distrito|municipio|concelho|freguesia)\b/g, " ")
         .replace(/[^a-z0-9\s]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
+    }
+
+    function extrairTextosGeo(valor) {
+      if (Array.isArray(valor)) {
+        return valor.flatMap(extrairTextosGeo);
+      }
+
+      if (typeof valor === "string") {
+        const texto = valor.trim();
+        return texto ? [texto] : [];
+      }
+
+      return [];
+    }
+
+    function localidadeEquivalente(cidade, candidatos) {
+      const cidadeNormalizada = normalizarLocalidade(cidade);
 
       if (!cidadeNormalizada) {
         return true;
       }
 
       return candidatos.some(function (candidato) {
-        const valor = normalizarTextoSimples(candidato)
-          .replace(/[^a-z0-9\s]/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
+        const valor = normalizarLocalidade(candidato);
 
         if (!valor) return false;
         if (cidadeNormalizada === valor) return true;
@@ -442,27 +458,30 @@
 
         const dados = await response.json();
 
-        const localidade = String(
-          dados["Localidade"] || "",
-        ).trim();
+        const localidades = extrairTextosGeo(
+          dados["Localidade"],
+        );
 
-        const concelho = String(
-          dados["Concelho"] || "",
-        ).trim();
+        const concelhos = extrairTextosGeo(
+          dados["Concelho"],
+        );
 
-        const designacaoPostal = String(
-          dados["Designação Postal"] || "",
-        ).trim();
+        const designacoesPostais = extrairTextosGeo(
+          dados["Designação Postal"],
+        );
 
-        const distrito = String(
-          dados["Distrito"] || "",
-        ).trim();
+        const distritos = extrairTextosGeo(
+          dados["Distrito"],
+        );
 
-        const candidatos = [
-          localidade,
-          concelho,
-          designacaoPostal,
-        ].filter(Boolean);
+        // Para um código postal exato podem existir várias localidades
+        // válidas. O município/concelho também conta como correspondência,
+        // por exemplo "Cabeceiras de Basto" para códigos 4860-xxx.
+        const candidatos = Array.from(new Set([
+          ...localidades,
+          ...concelhos,
+          ...designacoesPostais,
+        ]));
 
         if (
           validacao.cidade &&
@@ -470,9 +489,13 @@
           !localidadeEquivalente(validacao.cidade, candidatos)
         ) {
           const destino =
-            localidade ||
-            concelho ||
-            designacaoPostal;
+            localidades[0] ||
+            concelhos[0] ||
+            designacoesPostais[0] ||
+            "a localidade indicada pelos CTT";
+
+          const concelho = concelhos[0] || "";
+          const distrito = distritos[0] || "";
 
           const detalheConcelho =
             concelho &&
