@@ -257,28 +257,21 @@
     const dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
-    const retorno = params.get("retorno") || "browser";
+    const retornoParam = params.get("retorno");
+    const retorno = retornoParam === "app" ? "app" : "browser";
     const referrerOrigem = String(document.referrer || "");
-    const veioDeShopifyWeb =
-      /^https:\/\/(?:admin\.shopify\.com|extensions\.shopifycdn\.com)(?:\/|$)/i
-        .test(referrerOrigem);
     const veioDaShopifyAndroid =
       /^android-app:\/\/com\.shopify\.mobile(?:\/|$)/i
         .test(referrerOrigem);
 
-    // Em Admin UI Extensions o ambiente móvel nem sempre chega corretamente
-    // ao link externo. No Android, uma página lançada pela app Shopify pode
-    // chegar ao Chrome sem o parâmetro retorno=app. Usa o referrer nativo
-    // (ou a ausência de referrer fora do Shopify Web) como fallback.
+    // A origem indicada pela extensão é a fonte de verdade:
+    // Browser -> Browser | App Shopify -> App Shopify.
+    // O referrer nativo só é usado como fallback para links antigos
+    // que ainda não tragam o parâmetro "retorno".
     const retornoApp =
-      retorno === "app" ||
-      veioDaShopifyAndroid ||
-      (
-        ambienteAndroid() &&
-        retorno === "browser" &&
-        !veioDeShopifyWeb &&
-        !referrerOrigem
-      );
+      retornoParam !== null
+        ? retorno === "app"
+        : veioDaShopifyAndroid;
     const retornoBrowser = !retornoApp;
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
@@ -1128,8 +1121,51 @@
     function voltarAoShopify() {
       estadoEl.textContent = "A voltar ao Shopify...";
 
-      // Com a página aberta em _self na app Shopify, isto volta
-      // exatamente ao contexto anterior da própria app.
+      // BROWSER -> BROWSER
+      // A página de envio é aberta num novo separador. Fecha esse separador
+      // para revelar o Shopify que já estava aberto no browser.
+      // Não navegamos para admin.shopify.com como fallback porque, no Android,
+      // esse URL pode ser intercetado pela app Shopify.
+      if (retornoBrowser && modoRetorno !== "app") {
+        try {
+          window.close();
+        } catch (_erro) {}
+
+        setTimeout(function () {
+          if (!window.closed) {
+            estadoEl.textContent =
+              "Fecha este separador para voltar ao Shopify no browser.";
+          }
+        }, 250);
+
+        return;
+      }
+
+      // APP -> APP
+      // No Android força explicitamente o pacote oficial da Shopify.
+      if (ambienteAndroid() && orderId) {
+        const intentShopify =
+          criarIntentShopifyAndroid(orderId, returnUrl);
+
+        if (intentShopify) {
+          window.location.href = intentShopify;
+          return;
+        }
+      }
+
+      // Nos restantes dispositivos tenta o deep link nativo da Shopify.
+      if (orderId) {
+        const deepLinkShopify =
+          "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+        try {
+          window.location.href = deepLinkShopify;
+          return;
+        } catch (_erro) {}
+      }
+
+      // Fallback para contextos em que a página tenha sido aberta no mesmo
+      // WebView da app, sem depender de um URL HTTPS que possa ficar no browser.
       try {
         if (window.history.length > 1) {
           window.history.back();
@@ -1137,40 +1173,8 @@
         }
       } catch (_erro) {}
 
-      // Fallback apenas se não existir histórico utilizável.
-      if (retornoApp || modoRetorno === "app") {
-        if (ambienteAndroid() && orderId) {
-          const intentShopify =
-            criarIntentShopifyAndroid(orderId, returnUrl);
-
-          if (intentShopify) {
-            window.location.href = intentShopify;
-            return;
-          }
-        }
-
-        if (orderId) {
-          const deepLinkShopify =
-            "shopify://admin/orders/" + encodeURIComponent(orderId);
-
-          try {
-            window.location.href = deepLinkShopify;
-            return;
-          } catch (_erro) {}
-        }
-      }
-
-      if (returnUrl) {
-        window.location.href = returnUrl;
-        return;
-      }
-
-      try {
-        window.close();
-      } catch (_erro) {}
-
       estadoEl.textContent =
-        "Fecha este separador para voltar ao Shopify.";
+        "Volta à app Shopify para continuar.";
     }
 
     marcarFornecedorEl.addEventListener(
