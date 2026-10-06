@@ -554,9 +554,95 @@
       }
     }
 
+    function substituirCampoCliente(texto, rotulo, valor) {
+      const linhas = String(texto || "").split(/\r?\n/);
+      const rotuloNormalizado = normalizarTextoSimples(rotulo);
+      let substituido = false;
+
+      const novasLinhas = linhas.map(function (linhaOriginal) {
+        const linha = String(linhaOriginal || "");
+        const separador = linha.indexOf(":");
+
+        if (separador === -1) {
+          return linha;
+        }
+
+        const chave = normalizarTextoSimples(
+          linha.slice(0, separador),
+        );
+
+        if (chave !== rotuloNormalizado) {
+          return linha;
+        }
+
+        substituido = true;
+        return rotulo + ": " + String(valor || "").trim();
+      });
+
+      if (!substituido && String(valor || "").trim()) {
+        novasLinhas.push(
+          rotulo + ": " + String(valor || "").trim(),
+        );
+      }
+
+      return novasLinhas.join("\n");
+    }
+
+    function aplicarMoradaAtualShopify(shipping) {
+      if (!shipping || typeof shipping !== "object") {
+        return false;
+      }
+
+      const enderecoAtual = [
+        shipping.address1,
+        shipping.address2,
+      ].filter(Boolean).join(", ");
+
+      let atualizado = String(dadosCliente || "");
+
+      atualizado = substituirCampoCliente(
+        atualizado,
+        "Endereço",
+        enderecoAtual,
+      );
+      atualizado = substituirCampoCliente(
+        atualizado,
+        "Cidade",
+        shipping.city || "",
+      );
+      atualizado = substituirCampoCliente(
+        atualizado,
+        "Distrito",
+        shipping.province || "",
+      );
+      atualizado = substituirCampoCliente(
+        atualizado,
+        "País",
+        shipping.country || "",
+      );
+      atualizado = substituirCampoCliente(
+        atualizado,
+        "Código postal",
+        shipping.zip || "",
+      );
+
+      const mudou = atualizado !== dadosCliente;
+
+      dadosCliente = atualizado;
+      clienteTextoEl.textContent = dadosCliente;
+
+      validacaoMoradaAtual =
+        validarMoradaDadosCliente(dadosCliente);
+
+      moradaConfirmadaManualmente =
+        validacaoMoradaAtual.avisos.length === 0;
+
+      return mudou;
+    }
+
     async function validarEnvioFaturacaoOnline() {
       if (!orderId || !dadosCliente || !backendUrl) {
-        return;
+        return false;
       }
 
       validacaoShopifyPendente = true;
@@ -598,8 +684,12 @@
           });
 
         if (!response.ok || !result.ok) {
-          return;
+          return false;
         }
+
+        // A fonte principal passa a ser sempre a morada atual guardada
+        // na Shopify, não a cópia que vinha no URL quando esta página abriu.
+        aplicarMoradaAtualShopify(result.shipping);
 
         if (result.mismatch) {
           const aviso =
@@ -614,11 +704,14 @@
           validacaoMoradaAtual.bloqueante = true;
           moradaConfirmadaManualmente = false;
         }
+
+        return true;
       } catch (erro) {
         console.warn(
-          "Não foi possível comparar morada de envio e faturação:",
+          "Não foi possível atualizar/comparar a morada na Shopify:",
           erro,
         );
+        return false;
       } finally {
         validacaoShopifyPendente = false;
 
@@ -634,6 +727,32 @@
         ) {
           enviarClienteEl.disabled = false;
         }
+      }
+    }
+
+    async function sincronizarValidacoesMorada(forcar) {
+      const agora = Date.now();
+
+      if (sincronizacaoMoradaEmCurso) {
+        return;
+      }
+
+      if (
+        !forcar &&
+        ultimaSincronizacaoMorada &&
+        agora - ultimaSincronizacaoMorada < 1500
+      ) {
+        return;
+      }
+
+      sincronizacaoMoradaEmCurso = true;
+
+      try {
+        await validarEnvioFaturacaoOnline();
+        await validarCodigoPostalCidadeOnline();
+        ultimaSincronizacaoMorada = Date.now();
+      } finally {
+        sincronizacaoMoradaEmCurso = false;
       }
     }
 
@@ -708,7 +827,7 @@
     }
 
     const produtos = obterProdutos();
-    const dadosCliente = params.get("cliente") || "";
+    let dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
     const retorno = params.get("retorno") || "browser";
@@ -740,7 +859,7 @@
     // Valida sempre a morada, inclusive ao consultar/reabrir
     // um pedido já concluído. Assim, encomendas antigas com dados
     // suspeitos continuam a mostrar o aviso.
-    const validacaoMoradaAtual =
+    let validacaoMoradaAtual =
       validarMoradaDadosCliente(dadosCliente);
 
     let moradaConfirmadaManualmente =
@@ -748,6 +867,8 @@
 
     let validacaoPostalPendente = false;
     let validacaoShopifyPendente = false;
+    let sincronizacaoMoradaEmCurso = false;
+    let ultimaSincronizacaoMorada = 0;
 
     let completionToken =
       params.get("completion_token") || "";
@@ -943,8 +1064,25 @@
     }
 
     mostrarValidacaoMorada();
-    void validarCodigoPostalCidadeOnline();
-    void validarEnvioFaturacaoOnline();
+    void sincronizarValidacoesMorada(true);
+
+    window.addEventListener("focus", function () {
+      if (document.visibilityState === "visible") {
+        void sincronizarValidacoesMorada(false);
+      }
+    });
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") {
+        void sincronizarValidacoesMorada(false);
+      }
+    });
+
+    window.addEventListener("pageshow", function (event) {
+      if (event.persisted) {
+        void sincronizarValidacoesMorada(true);
+      }
+    });
 
     const blocosProdutos = [];
     const botoesProdutos = [];
