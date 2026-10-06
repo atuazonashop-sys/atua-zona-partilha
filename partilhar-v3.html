@@ -133,6 +133,31 @@
       line-height: 1.45;
     }
 
+    .aviso-morada {
+      background: #fff8e6;
+      border: 1px solid #e4bd54;
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .aviso-morada p {
+      margin: 0 0 10px;
+      line-height: 1.45;
+    }
+
+    .aviso-morada ul {
+      margin: 10px 0 14px;
+      padding-left: 22px;
+      line-height: 1.45;
+    }
+
+    .aviso-morada .acao-secundaria {
+      margin-top: 10px;
+      background: #fff;
+      color: #111;
+      border: 1px solid #d8d8d8;
+    }
+
     .oculto {
       display: none !important;
     }
@@ -142,6 +167,24 @@
   <main>
     <div class="card">
       <h1 id="tituloPagina">Enviar pedido ao fornecedor</h1>
+
+      <section id="moradaAviso" class="bloco aviso-morada oculto">
+        <h2>⚠️ Verificar morada</h2>
+        <p>
+          Foram detetados dados que podem estar incorretos.
+          Confirma a morada antes de a enviares ao fornecedor.
+        </p>
+        <ul id="moradaAvisos"></ul>
+        <p id="moradaResumo"></p>
+
+        <button id="confirmarMorada" class="botao-enviar" type="button">
+          Confirmo que a morada está correta
+        </button>
+
+        <button id="corrigirMorada" class="acao-secundaria" type="button">
+          Voltar ao Shopify para corrigir
+        </button>
+      </section>
 
       <section id="clienteBloco" class="bloco oculto">
         <h2>Dados do cliente</h2>
@@ -173,6 +216,11 @@
     const clienteTextoEl = document.getElementById("clienteTexto");
     const enviarClienteEl = document.getElementById("enviarCliente");
     const marcarFornecedorEl = document.getElementById("marcarFornecedor");
+    const moradaAvisoEl = document.getElementById("moradaAviso");
+    const moradaAvisosEl = document.getElementById("moradaAvisos");
+    const moradaResumoEl = document.getElementById("moradaResumo");
+    const confirmarMoradaEl = document.getElementById("confirmarMorada");
+    const corrigirMoradaEl = document.getElementById("corrigirMorada");
 
     let janelaWhatsAppControlada = null;
 
@@ -182,6 +230,119 @@
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .trim();
+    }
+
+    function obterCampoCliente(texto, rotulo) {
+      const rotuloNormalizado = normalizarTextoSimples(rotulo);
+
+      const linhas = String(texto || "").split(/\r?\n/);
+
+      for (const linhaOriginal of linhas) {
+        const linha = String(linhaOriginal || "").trim();
+        const separador = linha.indexOf(":");
+
+        if (separador === -1) continue;
+
+        const chave = normalizarTextoSimples(
+          linha.slice(0, separador),
+        );
+
+        if (chave === rotuloNormalizado) {
+          return linha.slice(separador + 1).trim();
+        }
+      }
+
+      return "";
+    }
+
+    function validarMoradaDadosCliente(texto) {
+      const avisos = [];
+      let bloqueante = false;
+
+      const endereco = obterCampoCliente(texto, "Endereço");
+      const codigoPostal = obterCampoCliente(texto, "Código postal");
+      const cidade = obterCampoCliente(texto, "Cidade");
+      const pais = normalizarTextoSimples(
+        obterCampoCliente(texto, "País"),
+      );
+
+      if (!endereco) {
+        avisos.push("Falta o endereço.");
+        bloqueante = true;
+      }
+
+      if (!codigoPostal) {
+        avisos.push("Falta o código postal.");
+        bloqueante = true;
+      }
+
+      if (!cidade) {
+        avisos.push("Falta a cidade/localidade.");
+        bloqueante = true;
+      }
+
+      if (
+        (pais === "portugal" || pais === "pt") &&
+        codigoPostal &&
+        !/^\d{4}-\d{3}$/.test(codigoPostal)
+      ) {
+        avisos.push(
+          'O código postal "' + codigoPostal +
+          '" não tem o formato português 0000-000.',
+        );
+      }
+
+      const numeros = String(endereco || "").match(/\b\d+\b/g) || [];
+      const contagem = {};
+
+      numeros.forEach(function (numero) {
+        contagem[numero] = (contagem[numero] || 0) + 1;
+      });
+
+      const repetidos = Object.keys(contagem).filter(function (numero) {
+        return contagem[numero] >= 3;
+      });
+
+      if (repetidos.length) {
+        avisos.push(
+          "Há números repetidos várias vezes no endereço: " +
+          repetidos.join(", ") + ".",
+        );
+      }
+
+      if (/\d{7,}/.test(String(endereco || ""))) {
+        avisos.push(
+          "Existe uma sequência numérica anormalmente longa no endereço.",
+        );
+      }
+
+      if (codigoPostal) {
+        const zipDigitos = codigoPostal.replace(/\D/g, "");
+        const enderecoDigitos = String(endereco || "").replace(/\D/g, "");
+
+        if (
+          zipDigitos.length >= 7 &&
+          enderecoDigitos.includes(zipDigitos)
+        ) {
+          avisos.push(
+            "O código postal parece estar também misturado na linha do endereço.",
+          );
+        }
+      }
+
+      if (String(endereco || "").length > 120) {
+        avisos.push(
+          "A linha do endereço é invulgarmente comprida.",
+        );
+      }
+
+      return {
+        avisos: Array.from(new Set(avisos)),
+        bloqueante: bloqueante,
+        endereco: endereco,
+        codigoPostal: codigoPostal,
+        cidade: cidade,
+      };
     }
 
     function sanitizarTextoProduto(textoOriginal, tituloProduto) {
@@ -283,6 +444,20 @@
     const retornoBrowser = !retornoApp;
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
+
+    const validacaoMoradaAtual = modoConsulta
+      ? {
+          avisos: [],
+          bloqueante: false,
+          endereco: "",
+          codigoPostal: "",
+          cidade: "",
+        }
+      : validarMoradaDadosCliente(dadosCliente);
+
+    let moradaConfirmadaManualmente =
+      validacaoMoradaAtual.avisos.length === 0;
+
     let completionToken =
       params.get("completion_token") || "";
     let backendUrl =
@@ -429,6 +604,39 @@
       clienteTextoEl.textContent = dadosCliente;
       clienteBlocoEl.classList.remove("oculto");
     }
+
+    function mostrarValidacaoMorada() {
+      if (
+        modoConsulta ||
+        validacaoMoradaAtual.avisos.length === 0
+      ) {
+        return;
+      }
+
+      moradaAvisosEl.innerHTML = "";
+
+      validacaoMoradaAtual.avisos.forEach(function (aviso) {
+        const item = document.createElement("li");
+        item.textContent = aviso;
+        moradaAvisosEl.appendChild(item);
+      });
+
+      moradaResumoEl.textContent = [
+        validacaoMoradaAtual.endereco,
+        validacaoMoradaAtual.codigoPostal,
+        validacaoMoradaAtual.cidade,
+      ].filter(Boolean).join(" · ");
+
+      enviarClienteEl.disabled = true;
+
+      if (validacaoMoradaAtual.bloqueante) {
+        confirmarMoradaEl.classList.add("oculto");
+      }
+
+      moradaAvisoEl.classList.remove("oculto");
+    }
+
+    mostrarValidacaoMorada();
 
     const blocosProdutos = [];
     const botoesProdutos = [];
@@ -854,6 +1062,19 @@
     }
 
     async function partilharCliente() {
+      if (
+        validacaoMoradaAtual.avisos.length > 0 &&
+        !moradaConfirmadaManualmente
+      ) {
+        estadoEl.textContent =
+          validacaoMoradaAtual.bloqueante
+            ? "Corrige primeiro a morada na Shopify."
+            : "Confirma primeiro se a morada está correta.";
+
+        irParaElemento(moradaAvisoEl, "start");
+        return;
+      }
+
       estadoEl.textContent = "A preparar os dados do cliente...";
 
       try {
@@ -1120,6 +1341,25 @@
         botao.disabled = false;
       }
     }
+
+    confirmarMoradaEl.addEventListener("click", function () {
+      if (validacaoMoradaAtual.bloqueante) {
+        return;
+      }
+
+      moradaConfirmadaManualmente = true;
+      enviarClienteEl.disabled = false;
+      moradaAvisoEl.classList.add("oculto");
+
+      estadoEl.textContent =
+        "Morada confirmada manualmente. Podes continuar o envio.";
+
+      irParaElemento(clienteBlocoEl, "start");
+    });
+
+    corrigirMoradaEl.addEventListener("click", function () {
+      voltarAoShopify();
+    });
 
     enviarClienteEl.addEventListener("click", partilharCliente);
 
