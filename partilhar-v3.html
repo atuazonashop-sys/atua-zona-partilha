@@ -445,15 +445,11 @@
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
 
-    const validacaoMoradaAtual = modoConsulta
-      ? {
-          avisos: [],
-          bloqueante: false,
-          endereco: "",
-          codigoPostal: "",
-          cidade: "",
-        }
-      : validarMoradaDadosCliente(dadosCliente);
+    // Valida sempre a morada, inclusive ao consultar/reabrir
+    // um pedido já concluído. Assim, encomendas antigas com dados
+    // suspeitos continuam a mostrar o aviso.
+    const validacaoMoradaAtual =
+      validarMoradaDadosCliente(dadosCliente);
 
     let moradaConfirmadaManualmente =
       validacaoMoradaAtual.avisos.length === 0;
@@ -606,10 +602,7 @@
     }
 
     function mostrarValidacaoMorada() {
-      if (
-        modoConsulta ||
-        validacaoMoradaAtual.avisos.length === 0
-      ) {
+      if (validacaoMoradaAtual.avisos.length === 0) {
         return;
       }
 
