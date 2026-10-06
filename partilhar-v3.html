@@ -634,8 +634,14 @@
       validacaoMoradaAtual =
         validarMoradaDadosCliente(dadosCliente);
 
-      moradaConfirmadaManualmente =
-        validacaoMoradaAtual.avisos.length === 0;
+      // Se a morada não mudou na Shopify, mantém uma confirmação manual
+      // já dada para um aviso leve. Se mudou, exige nova validação/confirmação.
+      if (mudou) {
+        moradaConfirmadaManualmente =
+          validacaoMoradaAtual.avisos.length === 0;
+      } else if (validacaoMoradaAtual.avisos.length === 0) {
+        moradaConfirmadaManualmente = true;
+      }
 
       return mudou;
     }
@@ -733,8 +739,8 @@
     async function sincronizarValidacoesMorada(forcar) {
       const agora = Date.now();
 
-      if (sincronizacaoMoradaEmCurso) {
-        return;
+      if (promessaSincronizacaoMorada) {
+        return await promessaSincronizacaoMorada;
       }
 
       if (
@@ -742,16 +748,28 @@
         ultimaSincronizacaoMorada &&
         agora - ultimaSincronizacaoMorada < 1500
       ) {
-        return;
+        return true;
       }
 
       sincronizacaoMoradaEmCurso = true;
 
-      try {
-        await validarEnvioFaturacaoOnline();
+      promessaSincronizacaoMorada = (async function () {
+        const shopifyOk =
+          await validarEnvioFaturacaoOnline();
+
         await validarCodigoPostalCidadeOnline();
-        ultimaSincronizacaoMorada = Date.now();
+
+        if (shopifyOk) {
+          ultimaSincronizacaoMorada = Date.now();
+        }
+
+        return shopifyOk;
+      })();
+
+      try {
+        return await promessaSincronizacaoMorada;
       } finally {
+        promessaSincronizacaoMorada = null;
         sincronizacaoMoradaEmCurso = false;
       }
     }
@@ -868,6 +886,7 @@
     let validacaoPostalPendente = false;
     let validacaoShopifyPendente = false;
     let sincronizacaoMoradaEmCurso = false;
+    let promessaSincronizacaoMorada = null;
     let ultimaSincronizacaoMorada = 0;
 
     let completionToken =
@@ -1508,12 +1527,15 @@
     }
 
     async function partilharCliente() {
-      if (
-        validacaoPostalPendente ||
-        validacaoShopifyPendente
-      ) {
+      estadoEl.textContent =
+        "A confirmar a morada atual na Shopify...";
+
+      const shopifyConfirmada =
+        await sincronizarValidacoesMorada(true);
+
+      if (!shopifyConfirmada) {
         estadoEl.textContent =
-          "A validar a morada. Tenta novamente dentro de um instante.";
+          "Não foi possível confirmar a morada atual na Shopify. Tenta novamente.";
         return;
       }
 
