@@ -352,10 +352,178 @@
       return {
         avisos: Array.from(new Set(avisos)),
         bloqueante: bloqueante,
+        sinaisFortes: sinaisFortes,
         endereco: endereco,
         codigoPostal: codigoPostal,
         cidade: cidade,
+        pais: pais,
       };
+    }
+
+    function localidadeEquivalente(cidade, candidatos) {
+      const cidadeNormalizada = normalizarTextoSimples(cidade)
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      if (!cidadeNormalizada) {
+        return true;
+      }
+
+      return candidatos.some(function (candidato) {
+        const valor = normalizarTextoSimples(candidato)
+          .replace(/[^a-z0-9\s]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (!valor) return false;
+        if (cidadeNormalizada === valor) return true;
+
+        if (
+          cidadeNormalizada.length >= 6 &&
+          valor.length >= 6 &&
+          (
+            cidadeNormalizada.includes(valor) ||
+            valor.includes(cidadeNormalizada)
+          )
+        ) {
+          return true;
+        }
+
+        return false;
+      });
+    }
+
+    async function validarCodigoPostalCidadeOnline() {
+      const validacao = validacaoMoradaAtual;
+
+      if (
+        validacao.pais !== "portugal" &&
+        validacao.pais !== "pt"
+      ) {
+        return;
+      }
+
+      if (!/^\d{4}-\d{3}$/.test(validacao.codigoPostal || "")) {
+        return;
+      }
+
+      validacaoPostalPendente = true;
+      enviarClienteEl.disabled = true;
+      confirmarMoradaEl.disabled = true;
+
+      try {
+        const controlador = new AbortController();
+        const timeout = setTimeout(function () {
+          controlador.abort();
+        }, 3500);
+
+        let response;
+
+        try {
+          response = await fetch(
+            "https://json.geoapi.pt/codigo_postal/" +
+              encodeURIComponent(validacao.codigoPostal),
+            {
+              headers: {
+                "Accept": "application/json",
+              },
+              cache: "no-store",
+              signal: controlador.signal,
+            },
+          );
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        if (!response.ok) {
+          return;
+        }
+
+        const dados = await response.json();
+
+        const localidade = String(
+          dados["Localidade"] || "",
+        ).trim();
+
+        const concelho = String(
+          dados["Concelho"] || "",
+        ).trim();
+
+        const designacaoPostal = String(
+          dados["Designação Postal"] || "",
+        ).trim();
+
+        const distrito = String(
+          dados["Distrito"] || "",
+        ).trim();
+
+        const candidatos = [
+          localidade,
+          concelho,
+          designacaoPostal,
+        ].filter(Boolean);
+
+        if (
+          validacao.cidade &&
+          candidatos.length > 0 &&
+          !localidadeEquivalente(validacao.cidade, candidatos)
+        ) {
+          const destino =
+            localidade ||
+            concelho ||
+            designacaoPostal;
+
+          const detalheConcelho =
+            concelho &&
+            normalizarTextoSimples(concelho) !==
+              normalizarTextoSimples(destino)
+              ? " (concelho de " + concelho + ")"
+              : "";
+
+          const detalheDistrito =
+            distrito
+              ? ", distrito de " + distrito
+              : "";
+
+          const aviso =
+            "O código postal " +
+            validacao.codigoPostal +
+            " corresponde a " +
+            destino +
+            detalheConcelho +
+            detalheDistrito +
+            ', mas a cidade está como "' +
+            validacao.cidade +
+            '".';
+
+          if (!validacao.avisos.includes(aviso)) {
+            validacao.avisos.push(aviso);
+            validacao.sinaisFortes += 1;
+          }
+
+          // Uma divergência cidade/código postal, isoladamente, fica como
+          // aviso confirmável. Se existir outro sinal forte em simultâneo,
+          // o envio fica bloqueado e exige correção na Shopify.
+          if (validacao.sinaisFortes >= 2) {
+            validacao.bloqueante = true;
+          }
+        }
+      } catch (erro) {
+        console.warn(
+          "Não foi possível validar código postal/localidade online:",
+          erro,
+        );
+      } finally {
+        validacaoPostalPendente = false;
+        confirmarMoradaEl.disabled = false;
+
+        mostrarValidacaoMorada();
+
+        if (validacaoMoradaAtual.avisos.length === 0) {
+          enviarClienteEl.disabled = false;
+        }
+      }
     }
 
     function sanitizarTextoProduto(textoOriginal, tituloProduto) {
@@ -466,6 +634,8 @@
 
     let moradaConfirmadaManualmente =
       validacaoMoradaAtual.avisos.length === 0;
+
+    let validacaoPostalPendente = false;
 
     let completionToken =
       params.get("completion_token") || "";
@@ -616,6 +786,12 @@
 
     function mostrarValidacaoMorada() {
       if (validacaoMoradaAtual.avisos.length === 0) {
+        moradaAvisoEl.classList.add("oculto");
+
+        if (!validacaoPostalPendente) {
+          enviarClienteEl.disabled = false;
+        }
+
         return;
       }
 
@@ -652,6 +828,7 @@
     }
 
     mostrarValidacaoMorada();
+    void validarCodigoPostalCidadeOnline();
 
     const blocosProdutos = [];
     const botoesProdutos = [];
@@ -1077,6 +1254,12 @@
     }
 
     async function partilharCliente() {
+      if (validacaoPostalPendente) {
+        estadoEl.textContent =
+          "A validar código postal e localidade. Tenta novamente dentro de um instante.";
+        return;
+      }
+
       if (
         validacaoMoradaAtual.avisos.length > 0 &&
         !moradaConfirmadaManualmente
