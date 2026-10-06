@@ -502,12 +502,10 @@
             validacao.sinaisFortes += 1;
           }
 
-          // Uma divergência cidade/código postal, isoladamente, fica como
-          // aviso confirmável. Se existir outro sinal forte em simultâneo,
-          // o envio fica bloqueado e exige correção na Shopify.
-          if (validacao.sinaisFortes >= 2) {
-            validacao.bloqueante = true;
-          }
+          // Código postal e localidade incompatíveis são sempre bloqueantes.
+          // O utilizador deve corrigir os dados na Shopify antes de enviar
+          // a encomenda ao fornecedor.
+          validacao.bloqueante = true;
         }
       } catch (erro) {
         console.warn(
