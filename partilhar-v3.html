@@ -258,7 +258,8 @@
     const dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
-    const retorno = params.get("retorno") || "browser";
+    const retornoParam = params.get("retorno");
+    const retorno = retornoParam === "app" ? "app" : "browser";
     const referrerOrigem = String(document.referrer || "");
     const veioDeShopifyWeb =
       /^https:\/\/(?:admin\.shopify\.com|extensions\.shopifycdn\.com)(?:\/|$)/i
@@ -267,19 +268,17 @@
       /^android-app:\/\/com\.shopify\.mobile(?:\/|$)/i
         .test(referrerOrigem);
 
-    // Em Admin UI Extensions o ambiente móvel nem sempre chega corretamente
-    // ao link externo. No Android, uma página lançada pela app Shopify pode
-    // chegar ao Chrome sem o parâmetro retorno=app. Usa o referrer nativo
-    // (ou a ausência de referrer fora do Shopify Web) como fallback.
+    // Regra definitiva:
+    // browser Shopify -> browser | app Shopify -> app.
+    // O referrer do host tem prioridade sobre o parâmetro da extensão,
+    // porque algumas versões do Shopify no Android podem marcar "mobile"
+    // mesmo quando o utilizador começou no browser.
     const retornoApp =
-      retorno === "app" ||
-      veioDaShopifyAndroid ||
-      (
-        ambienteAndroid() &&
-        retorno === "browser" &&
-        !veioDeShopifyWeb &&
-        !referrerOrigem
-      );
+      veioDaShopifyAndroid
+        ? true
+        : veioDeShopifyWeb
+          ? false
+          : retorno === "app";
     const retornoBrowser = !retornoApp;
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
@@ -1183,33 +1182,56 @@
       estadoEl.textContent =
         "A voltar ao Shopify para confirmar...";
 
-      // No telemóvel, não dependemos do modo enviado pela extensão.
-      // A versão 133 fica intacta e esta página usa diretamente o URL
-      // HTTPS real da encomenda para regressar ao Shopify.
-      if (ambienteMovel() && returnUrl) {
+      // BROWSER -> BROWSER
+      // Nunca usa o URL https://admin.shopify.com no Android, porque esse
+      // endereço pode ser intercetado pela app Shopify. Fecha apenas o
+      // separador externo e revela o Shopify que já estava no browser.
+      if (retornoBrowser && modoRetorno !== "app") {
         try {
-          window.location.href = returnUrl;
+          window.close();
+        } catch (_erro) {}
+
+        setTimeout(function () {
+          if (!window.closed) {
+            estadoEl.textContent =
+              "Envio preparado. Fecha este separador para voltar ao Shopify no browser e confirmar.";
+          }
+        }, 250);
+
+        return;
+      }
+
+      // APP -> APP
+      if (ambienteAndroid() && orderId) {
+        const intentShopify =
+          criarIntentShopifyAndroid(orderId, returnUrl);
+
+        if (intentShopify) {
+          window.location.href = intentShopify;
+          return;
+        }
+      }
+
+      if (orderId) {
+        const deepLinkShopify =
+          "shopify://admin/orders/" + encodeURIComponent(orderId);
+
+        try {
+          window.location.href = deepLinkShopify;
           return;
         } catch (_erro) {}
       }
 
-      // No computador, a página de envio abre num separador próprio.
-      // Fecha-o para revelar novamente o Admin Shopify.
+      // Último fallback da app: regressa ao contexto anterior do WebView.
       try {
-        window.close();
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
       } catch (_erro) {}
 
-      setTimeout(function () {
-        if (returnUrl) {
-          try {
-            window.location.href = returnUrl;
-            return;
-          } catch (_erro) {}
-        }
-
-        estadoEl.textContent =
-          "Envio preparado. Fecha este separador para voltar ao Shopify e confirmar.";
-      }, 350);
+      estadoEl.textContent =
+        "Envio preparado. Volta à app Shopify para confirmar.";
     }
 
     marcarFornecedorEl.addEventListener(
