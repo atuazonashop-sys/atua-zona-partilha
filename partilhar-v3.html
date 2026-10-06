@@ -848,8 +848,8 @@
     let dadosCliente = params.get("cliente") || "";
     const orderId = params.get("order_id") || "";
     const returnUrl = params.get("return_url") || "";
-    const retornoParametro = params.get("retorno");
-    const retorno = retornoParametro || "browser";
+    const retornoParam = params.get("retorno");
+    const retorno = retornoParam === "app" ? "app" : "browser";
     const referrerOrigem = String(document.referrer || "");
     const veioDeShopifyWeb =
       /^https:\/\/(?:admin\.shopify\.com|extensions\.shopifycdn\.com)(?:\/|$)/i
@@ -857,37 +857,17 @@
     const veioDaShopifyAndroid =
       /^android-app:\/\/com\.shopify\.mobile(?:\/|$)/i
         .test(referrerOrigem);
-    const abriuDeSeparadorBrowser = (function () {
-      try {
-        return Boolean(window.opener);
-      } catch (_erro) {
-        return false;
-      }
-    })();
 
-    // Em Admin UI Extensions o ambiente móvel nem sempre chega corretamente
-    // ao link externo. No Android, uma página lançada pela app Shopify pode
-    // chegar ao Chrome sem o parâmetro retorno=app. Usa o referrer nativo
-    // (ou a ausência de referrer fora do Shopify Web) como fallback.
-    // Prioridade real da origem:
-    // 1) Se o Android disser que veio da app Shopify, regressa à app.
-    // 2) Se o referrer for o Admin/extension web, mantém no browser,
-    //    mesmo que a extensão tenha enviado retorno=app por engano.
-    // 3) Só depois usa o parâmetro retorno como fallback.
+    // Lógica recuperada da versão antiga que separava corretamente:
+    // Browser -> Browser | App Shopify -> App Shopify.
+    // O host/referrer real tem prioridade sobre o parâmetro enviado
+    // pela extensão, porque o Shopify pode marcar mobile também no browser.
     const retornoApp =
-      veioDaShopifyAndroid ||
-      (
-        !veioDeShopifyWeb &&
-        (
-          retornoParametro === "app" ||
-          (
-            !retornoParametro &&
-            ambienteAndroid() &&
-            !abriuDeSeparadorBrowser &&
-            !referrerOrigem
-          )
-        )
-      );
+      veioDaShopifyAndroid
+        ? true
+        : veioDeShopifyWeb
+          ? false
+          : retorno === "app";
     const retornoBrowser = !retornoApp;
     const modoRetorno = params.get("modo_retorno") || "";
     const modoConsulta = params.get("consulta") === "1";
@@ -1950,48 +1930,26 @@
     }
 
     function voltarAoShopifyNoBrowser() {
-      // O fluxo que começou no browser deve voltar ao separador do browser
-      // que já contém o Shopify. Tenta primeiro fechar esta página externa.
-      // Isto evita navegar para admin.shopify.com e disparar a app Android.
-      try {
-        if (window.opener && !window.opener.closed) {
-          try {
-            window.opener.focus();
-          } catch (_erro) {}
-
-          window.close();
-          return true;
-        }
-      } catch (_erro) {}
-
+      // Comportamento recuperado da versão antiga que funcionava:
+      // Browser -> Browser = apenas fechar a página externa.
+      //
+      // Não usa history.back(), returnUrl, intent:// nem admin.shopify.com,
+      // porque qualquer um desses caminhos pode ser intercetado pelo Android
+      // e abrir a app Shopify.
       try {
         window.close();
-
-        // Se o browser aceitou fechar, a execução deixa de ser relevante.
-        // Se não aceitou, continua para os fallbacks abaixo.
       } catch (_erro) {}
 
-      try {
-        if (window.history.length > 1) {
-          window.history.back();
-          return true;
+      setTimeout(function () {
+        if (!window.closed) {
+          estadoEl.textContent =
+            "Envio preparado. Fecha este separador para voltar ao Shopify no browser e confirmar.";
         }
-      } catch (_erro) {}
+      }, 250);
 
-      // Último recurso no Android: abre explicitamente o Chrome.
-      // Só chega aqui se fechar/regressar ao separador anterior falhou.
-      if (ambienteAndroid() && returnUrl) {
-        const intentChrome = criarIntentChrome(returnUrl);
-
-        if (intentChrome) {
-          try {
-            window.location.href = intentChrome;
-            return true;
-          } catch (_erro) {}
-        }
-      }
-
-      return false;
+      // É intencional devolver true mesmo se o browser impedir window.close().
+      // Assim nunca cai num fallback capaz de abrir a app Shopify.
+      return true;
     }
 
     function voltarAoShopify() {
